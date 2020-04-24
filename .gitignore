@@ -1,0 +1,3 @@
+dist/*
+build/*
+haros_plugin_model_ged.egg-info/*
