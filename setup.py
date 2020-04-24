@@ -46,7 +46,9 @@ setup(
     packages = find_packages(),
     package_data = {"haros_plugin_model_ged": extra_files},
     install_requires = [
-        "networkx>=2.2.0,<3.0.0"
+        "networkx>=2.2.0,<3.0.0",
+        "numpy>=1.15.4",
+        "scipy>=1.1.0"
     ],
     zip_safe = True
 )

@@ -53,6 +53,7 @@ def configuration_analysis(iface, config):
     truth = config.user_attributes.get("haros_plugin_model_ged")
     if truth is None:
         return
+    n = truth_items(truth)
     truth = truth_to_nx(truth)
     model = config_to_nx(config)
     s_ged = calc_ged(truth, model)
@@ -61,7 +62,8 @@ def configuration_analysis(iface, config):
     iface.report_metric("simpleGED", s_ged)
     iface.report_metric("fullGED", f_ged)
     iface.report_runtime_violation("reportGED",
-        "Simple GED: {}, Full GED: {}".format(s_ged, f_ged))
+        "Simple GED: {}, Full GED: {}, N: {}, Es: {}, Ef: {}".format(
+            s_ged, f_ged, n, s_ged / n, f_ged / n))
 
 
 ###############################################################################
@@ -89,7 +91,7 @@ def node_attrs(node, ext=False):
     }
     if ext:
         attrs.update({
-            "node_type": node.node_name,
+            "node_type": node.node.node_name,
             "args": node.argv,
             "conditional": bool(node.conditions),
             "traceability": location_attrs(node.traceability()[0])
@@ -202,16 +204,16 @@ def config_to_nx(config, ext=False):
     G = nx.MultiDiGraph()
     for node in config.nodes.enabled:
         attrs = node_attrs(node, ext=ext)
-        G.add_node(id(node), attrs)
+        G.add_node(id(node), **attrs)
     for topic in config.topics.enabled:
         attrs = topic_attrs(topic, ext=ext)
-        G.add_node(id(topic), attrs)
+        G.add_node(id(topic), **attrs)
     for service in config.services.enabled:
         attrs = service_attrs(service, ext=ext)
-        G.add_node(id(service), attrs)
+        G.add_node(id(service), **attrs)
     for param in config.parameters.enabled:
         attrs = param_attrs(param, ext=ext)
-        G.add_node(id(param), attrs)
+        G.add_node(id(param), **attrs)
     for node in config.nodes.enabled:
         for link in node.publishers:
             attrs = topiclink_attrs(link, PUBLISH, ext=ext)
@@ -257,25 +259,25 @@ def truth_to_nx(truth):
         uid = attrs["id"]
         del attrs["id"]
         attrs["resource_type"] = NODE
-        G.add_node(uid, attrs)
+        G.add_node(uid, **attrs)
     for topic in truth["topics"]:
         attrs = dict(topic)
         uid = attrs["id"]
         del attrs["id"]
         attrs["resource_type"] = TOPIC
-        G.add_node(uid, attrs)
+        G.add_node(uid, **attrs)
     for service in truth["services"]:
         attrs = dict(service)
         uid = attrs["id"]
         del attrs["id"]
         attrs["resource_type"] = SERVICE
-        G.add_node(uid, attrs)
+        G.add_node(uid, **attrs)
     for param in truth["parameters"]:
         attrs = dict(param)
         uid = attrs["id"]
         del attrs["id"]
         attrs["resource_type"] = PARAMETER
-        G.add_node(uid, attrs)
+        G.add_node(uid, **attrs)
     for link in truth["publishers"]:
         s = link["node"]
         t = link["topic"]
@@ -283,7 +285,7 @@ def truth_to_nx(truth):
         del attrs["node"]
         del attrs["topic"]
         attrs["link_type"] = PUBLISH
-        G.add_edge(s, t, attrs)
+        G.add_edge(s, t, **attrs)
     for link in truth["subscribers"]:
         s = link["topic"]
         t = link["node"]
@@ -291,7 +293,7 @@ def truth_to_nx(truth):
         del attrs["node"]
         del attrs["topic"]
         attrs["link_type"] = SUBSCRIBE
-        G.add_edge(s, t, attrs)
+        G.add_edge(s, t, **attrs)
     for link in truth["clients"]:
         s = link["node"]
         t = link["service"]
@@ -299,7 +301,7 @@ def truth_to_nx(truth):
         del attrs["node"]
         del attrs["service"]
         attrs["link_type"] = CLIENT
-        G.add_edge(s, t, attrs)
+        G.add_edge(s, t, **attrs)
     for link in truth["servers"]:
         s = link["service"]
         t = link["node"]
@@ -307,7 +309,7 @@ def truth_to_nx(truth):
         del attrs["node"]
         del attrs["service"]
         attrs["link_type"] = SERVER
-        G.add_edge(s, t, attrs)
+        G.add_edge(s, t, **attrs)
     for link in truth["sets"]:
         s = link["node"]
         t = link["parameter"]
@@ -315,7 +317,7 @@ def truth_to_nx(truth):
         del attrs["node"]
         del attrs["parameter"]
         attrs["link_type"] = SET
-        G.add_edge(s, t, attrs)
+        G.add_edge(s, t, **attrs)
     for link in truth["gets"]:
         s = link["parameter"]
         t = link["node"]
@@ -323,7 +325,7 @@ def truth_to_nx(truth):
         del attrs["node"]
         del attrs["parameter"]
         attrs["link_type"] = GET
-        G.add_edge(s, t, attrs)
+        G.add_edge(s, t, **attrs)
     return G
 
 
@@ -331,9 +333,7 @@ def truth_to_nx(truth):
 # Graph Edit Distance Calculation
 ###############################################################################
 
-def calc_ged(truth, config):
-    G1 = truth_to_nx(truth)
-    G2 = config_to_nx(config)
+def calc_ged(G1, G2):
     return nx.graph_edit_distance(G1, G2,
         node_subst_cost=node_subst_cost,
         node_del_cost=None, # defaults to 1
@@ -360,11 +360,11 @@ def node_subst_cost(u, v):
     if u["resource_type"] != v["resource_type"]:
         return 1.0
     n = len(v)
-    assert n >= 3
+    assert n >= 2, str(v)
     total = float(n - 1) # ignore 'resource_type'
     score = total # start with everything right and apply penalties
     score -= cmp_resource(u, v)
-    if n > 3:
+    if n > 2:
         if u["resource_type"] == NODE:
             score -= cmp_node_ext(u, v)
         elif u["resource_type"] == TOPIC:
@@ -459,9 +459,9 @@ def edge_subst_cost(a, b):
 
 def cmp_link(a, b):
     penalty = 0.0
-    if "?" in v["rosname"]:
+    if "?" in b["rosname"]:
         penalty += 0.5
-    elif u["rosname"] != v["rosname"]:
+    elif a["rosname"] != b["rosname"]:
         penalty += 1.0
     if a["conditional"] != b["conditional"]:
         penalty += 1.0
@@ -569,6 +569,10 @@ def loc_list_to_dict(locs):
     return pd
 
 def f1(expected, predicted, spurious):
+    if expected == 0:
+        return 1.0
+    if predicted == 0 and spurious == 0:
+        return 0.0
     p = predicted / float(predicted + spurious)
     r = predicted / float(expected)
     if p + r == 0.0:
@@ -586,4 +590,19 @@ def cmp_traceability(t1, t2):
     if t2["line"] != t1["line"]:
         return 1.0 / 6.0
     return 0.0
+
+
+def truth_items(truth):
+    n = 0
+    n += len(truth["nodes"])
+    n += len(truth["topics"])
+    n += len(truth["services"])
+    n += len(truth["parameters"])
+    n += len(truth["publishers"])
+    n += len(truth["subscribers"])
+    n += len(truth["clients"])
+    n += len(truth["servers"])
+    n += len(truth["sets"])
+    n += len(truth["gets"])
+    return n
 
