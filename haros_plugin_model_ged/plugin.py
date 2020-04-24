@@ -68,6 +68,18 @@ def configuration_analysis(iface, config):
 # Graph Node Attributes
 ###############################################################################
 
+def location_attrs(loc):
+    attrs = {"package": None, "file": None, "line": None}
+    if loc is not None:
+        if loc.package is not None:
+            attrs["package"] = loc.package.name
+        if loc.file is not None:
+            attrs["file"] = loc.file.full_name
+        if loc.line is not None:
+            attrs["line"] = loc.line
+    return attrs
+
+
 def node_attrs(node, ext=False):
     attrs = {
         "resource_type": NODE,
@@ -76,20 +88,11 @@ def node_attrs(node, ext=False):
         # "namespace": node.rosname.namespace
     }
     if ext:
-        loc = node.traceability()[0]
-        if loc is None:
-            loc = {"package": None, "file": None, "line": None}
-        else:
-            loc = {
-                "package": loc.package,
-                "file": loc.file,
-                "line": loc.line
-            }
         attrs.update({
             "node_type": node.node_name,
             "args": node.argv,
             "conditional": bool(node.conditions),
-            "traceability": loc
+            "traceability": location_attrs(node.traceability()[0])
         })
     return attrs
 
@@ -103,11 +106,8 @@ def topic_attrs(topic, ext=False):
     if ext:
         attrs.update({
             "conditional": bool(topic.conditions),
-            "traceability": [{
-                "package": loc.package,
-                "file": loc.file,
-                "line": loc.line
-            } for loc in topic.traceability()]
+            "traceability": [
+                location_attrs(loc) for loc in topic.traceability()]
         })
     return attrs
 
@@ -121,11 +121,8 @@ def service_attrs(service, ext=False):
     if ext:
         attrs.update({
             "conditional": bool(service.conditions),
-            "traceability": [{
-                "package": loc.package,
-                "file": loc.file,
-                "line": loc.line
-            } for loc in service.traceability()]
+            "traceability": [
+                location_attrs(loc) for loc in service.traceability()]
         })
     return attrs
 
@@ -140,11 +137,8 @@ def param_attrs(param, ext=False):
         attrs.update({
             "default_value": param.value,
             "conditional": bool(param.conditions),
-            "traceability": [{
-                "package": loc.package,
-                "file": loc.file,
-                "line": loc.line
-            } for loc in param.traceability()]
+            "traceability": [
+                location_attrs(loc) for loc in param.traceability()]
         })
     return attrs
 
@@ -158,20 +152,12 @@ def topiclink_attrs(link, t, ext=False):
         "link_type": t,
     }
     if ext:
-        if link.source_location is None:
-            loc = {"package": None, "file": None, "line": None}
-        else:
-            loc = {
-                "package": link.source_location.package,
-                "file": link.source_location.file,
-                "line": link.source_location.line
-            }
         attrs.update({
             "rosname": link.rosname.full,
             # "rosname": link.rosname.own,
             # "namespace": link.rosname.namespace,
             "conditional": bool(link.conditions),
-            "traceability": loc,
+            "traceability": location_attrs(link.source_location),
             "queue_size": link.queue_size,
             "msg_type": link.type
         })
@@ -182,20 +168,12 @@ def srvlink_attrs(link, t, ext=False):
         "link_type": t,
     }
     if ext:
-        if link.source_location is None:
-            loc = {"package": None, "file": None, "line": None}
-        else:
-            loc = {
-                "package": link.source_location.package,
-                "file": link.source_location.file,
-                "line": link.source_location.line
-            }
         attrs.update({
             "rosname": link.rosname.full,
             # "rosname": link.rosname.own,
             # "namespace": link.rosname.namespace,
             "conditional": bool(link.conditions),
-            "traceability": loc,
+            "traceability": location_attrs(link.source_location),
             "srv_type": link.type
         })
     return attrs
@@ -205,20 +183,12 @@ def paramlink_attrs(link, t, ext=False):
         "link_type": t,
     }
     if ext:
-        if link.source_location is None:
-            loc = {"package": None, "file": None, "line": None}
-        else:
-            loc = {
-                "package": link.source_location.package,
-                "file": link.source_location.file,
-                "line": link.source_location.line
-            }
         attrs.update({
             "rosname": link.rosname.full,
             # "rosname": link.rosname.own,
             # "namespace": link.rosname.namespace,
             "conditional": bool(link.conditions),
-            "traceability": loc,
+            "traceability": location_attrs(link.source_location),
             "param_type": link.type
         })
     return attrs
@@ -306,7 +276,7 @@ def truth_to_nx(truth):
         del attrs["id"]
         attrs["resource_type"] = PARAMETER
         G.add_node(uid, attrs)
-    for link in truth["publish"]:
+    for link in truth["publishers"]:
         s = link["node"]
         t = link["topic"]
         attrs = dict(link)
@@ -314,7 +284,7 @@ def truth_to_nx(truth):
         del attrs["topic"]
         attrs["link_type"] = PUBLISH
         G.add_edge(s, t, attrs)
-    for link in truth["subscribe"]:
+    for link in truth["subscribers"]:
         s = link["topic"]
         t = link["node"]
         attrs = dict(link)
@@ -322,7 +292,7 @@ def truth_to_nx(truth):
         del attrs["topic"]
         attrs["link_type"] = SUBSCRIBE
         G.add_edge(s, t, attrs)
-    for link in truth["client"]:
+    for link in truth["clients"]:
         s = link["node"]
         t = link["service"]
         attrs = dict(link)
@@ -330,7 +300,7 @@ def truth_to_nx(truth):
         del attrs["service"]
         attrs["link_type"] = CLIENT
         G.add_edge(s, t, attrs)
-    for link in truth["server"]:
+    for link in truth["servers"]:
         s = link["service"]
         t = link["node"]
         attrs = dict(link)
@@ -338,7 +308,7 @@ def truth_to_nx(truth):
         del attrs["service"]
         attrs["link_type"] = SERVER
         G.add_edge(s, t, attrs)
-    for link in truth["set_param"]:
+    for link in truth["sets"]:
         s = link["node"]
         t = link["parameter"]
         attrs = dict(link)
@@ -346,7 +316,7 @@ def truth_to_nx(truth):
         del attrs["parameter"]
         attrs["link_type"] = SET
         G.add_edge(s, t, attrs)
-    for link in truth["get_param"]:
+    for link in truth["gets"]:
         s = link["parameter"]
         t = link["node"]
         attrs = dict(link)
