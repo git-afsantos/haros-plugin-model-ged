@@ -56,7 +56,7 @@ def configuration_analysis(iface, config):
     truth = truth_to_nx(truth)
     model = config_to_nx(config)
     s_ged = calc_ged(truth, model)
-    model = config_to_nx(config ext=True)
+    model = config_to_nx(config, ext=True)
     f_ged = calc_ged(truth, model)
     iface.report_metric("simpleGED", s_ged)
     iface.report_metric("fullGED", f_ged)
@@ -217,32 +217,32 @@ def config_to_nx(config, ext=False):
             attrs = topiclink_attrs(link, PUBLISH, ext=ext)
             s = id(link.node)
             t = id(link.topic)
-            G.add_edge(s, t, key=id(link), attrs)
+            G.add_edge(s, t, key=id(link), **attrs)
         for link in node.subscribers:
             attrs = topiclink_attrs(link, SUBSCRIBE, ext=ext)
             s = id(link.topic)
             t = id(link.node)
-            G.add_edge(s, t, key=id(link), attrs)
+            G.add_edge(s, t, key=id(link), **attrs)
         for link in node.servers:
             attrs = srvlink_attrs(link, SERVICE, ext=ext)
             s = id(link.service)
             t = id(link.node)
-            G.add_edge(s, t, key=id(link), attrs)
+            G.add_edge(s, t, key=id(link), **attrs)
         for link in node.clients:
             attrs = srvlink_attrs(link, CLIENT, ext=ext)
             s = id(link.node)
             t = id(link.service)
-            G.add_edge(s, t, key=id(link), attrs)
+            G.add_edge(s, t, key=id(link), **attrs)
         for link in node.reads:
             attrs = paramlink_attrs(link, GET, ext=ext)
             s = id(link.parameter)
             t = id(link.node)
-            G.add_edge(s, t, key=id(link), attrs)
+            G.add_edge(s, t, key=id(link), **attrs)
         for link in node.writes:
             attrs = paramlink_attrs(link, SET, ext=ext)
             s = id(link.node)
             t = id(link.parameter)
-            G.add_edge(s, t, key=id(link), attrs)
+            G.add_edge(s, t, key=id(link), **attrs)
     return G
 
 
