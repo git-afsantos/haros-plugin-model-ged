@@ -59,11 +59,27 @@ def configuration_analysis(iface, config):
     s_ged = calc_ged(truth, model)
     model = config_to_nx(config, ext=True)
     f_ged = calc_ged(truth, model)
+    paths, cost = calc_edit_paths(truth, model)
     iface.report_metric("simpleGED", s_ged)
     iface.report_metric("fullGED", f_ged)
     iface.report_runtime_violation("reportGED",
-        "Simple GED: {}, Full GED: {}, N: {}, Es: {}, Ef: {}".format(
-            s_ged, f_ged, n, s_ged / n, f_ged / n))
+        ("Simple GED: {}, Full GED: {}, N: {}, Es: {}, Ef: {}"
+         "; Edit Path Cost: {}").format(
+            s_ged, f_ged, n, s_ged / n, f_ged / n, cost))
+    with open("ged-output.txt", "w") as f:
+        f.write("{}\n".format("\n".join([
+            "---- TRUTH NODES ----",
+            str(truth.nodes.values()),
+            "---- TRUTH EDGES ----",
+            str(truth.edges.values()),
+            "---- MODEL NODES ----",
+            str(model.nodes.values()),
+            "---- MODEL EDGES ----",
+            str(model.edges.values()),
+            "---- EDIT PATHS ----",
+            str(paths)
+        ])))
+    iface.export_file("ged-output.txt")
 
 
 ###############################################################################
@@ -201,50 +217,59 @@ def paramlink_attrs(link, t, ext=False):
 ###############################################################################
 
 def config_to_nx(config, ext=False):
+    objs = {}
     G = nx.MultiDiGraph()
     for node in config.nodes.enabled:
         attrs = node_attrs(node, ext=ext)
-        G.add_node(id(node), **attrs)
+        uid = "[{}]{}".format(len(G), attrs["rosname"])
+        objs[node] = uid
+        G.add_node(uid, **attrs)
     for topic in config.topics.enabled:
         attrs = topic_attrs(topic, ext=ext)
-        G.add_node(id(topic), **attrs)
+        uid = "[{}]{}".format(len(G), attrs["rosname"])
+        objs[topic] = uid
+        G.add_node(uid, **attrs)
     for service in config.services.enabled:
         attrs = service_attrs(service, ext=ext)
-        G.add_node(id(service), **attrs)
+        uid = "[{}]{}".format(len(G), attrs["rosname"])
+        objs[service] = uid
+        G.add_node(uid, **attrs)
     for param in config.parameters.enabled:
         attrs = param_attrs(param, ext=ext)
-        G.add_node(id(param), **attrs)
+        uid = "[{}]{}".format(len(G), attrs["rosname"])
+        objs[param] = uid
+        G.add_node(uid, **attrs)
     for node in config.nodes.enabled:
         for link in node.publishers:
             attrs = topiclink_attrs(link, PUBLISH, ext=ext)
-            s = id(link.node)
-            t = id(link.topic)
-            G.add_edge(s, t, key=id(link), **attrs)
+            s = objs[link.node]
+            t = objs[link.topic]
+            G.add_edge(s, t, key=s+t, **attrs)
         for link in node.subscribers:
             attrs = topiclink_attrs(link, SUBSCRIBE, ext=ext)
-            s = id(link.topic)
-            t = id(link.node)
-            G.add_edge(s, t, key=id(link), **attrs)
+            s = objs[link.topic]
+            t = objs[link.node]
+            G.add_edge(s, t, key=s+t, **attrs)
         for link in node.servers:
             attrs = srvlink_attrs(link, SERVICE, ext=ext)
-            s = id(link.service)
-            t = id(link.node)
-            G.add_edge(s, t, key=id(link), **attrs)
+            s = objs[link.service]
+            t = objs[link.node]
+            G.add_edge(s, t, key=s+t, **attrs)
         for link in node.clients:
             attrs = srvlink_attrs(link, CLIENT, ext=ext)
-            s = id(link.node)
-            t = id(link.service)
-            G.add_edge(s, t, key=id(link), **attrs)
+            s = objs[link.node]
+            t = objs[link.service]
+            G.add_edge(s, t, key=s+t, **attrs)
         for link in node.reads:
             attrs = paramlink_attrs(link, GET, ext=ext)
-            s = id(link.parameter)
-            t = id(link.node)
-            G.add_edge(s, t, key=id(link), **attrs)
+            s = objs[link.parameter]
+            t = objs[link.node]
+            G.add_edge(s, t, key=s+t, **attrs)
         for link in node.writes:
             attrs = paramlink_attrs(link, SET, ext=ext)
-            s = id(link.node)
-            t = id(link.parameter)
-            G.add_edge(s, t, key=id(link), **attrs)
+            s = objs[link.node]
+            t = objs[link.parameter]
+            G.add_edge(s, t, key=s+t, **attrs)
     return G
 
 
@@ -342,6 +367,15 @@ def calc_ged(G1, G2):
         edge_del_cost=None, # defaults to 1
         edge_ins_cost=None) # defaults to 1
 
+def calc_edit_paths(G1, G2):
+    return nx.optimal_edit_paths(G1, G2,
+        node_subst_cost=node_subst_cost,
+        node_del_cost=None, # defaults to 1
+        node_ins_cost=None, # defaults to 1
+        edge_subst_cost=edge_subst_cost,
+        edge_del_cost=None, # defaults to 1
+        edge_ins_cost=None) # defaults to 1
+
 
 ###############################################################################
 # GED Node Cost Functions
@@ -358,7 +392,7 @@ def node_subst_cost(u, v):
     # final result is a cost in [0.0, 1.0]
     #   where 0.0 is perfect and 1.0 is completely wrong
     if u["resource_type"] != v["resource_type"]:
-        return 1.0
+        return 2.0
     n = len(v)
     assert n >= 2, str(v)
     total = float(n - 1) # ignore 'resource_type'
@@ -376,6 +410,8 @@ def node_subst_cost(u, v):
             score -= cmp_param_ext(u, v)
     score = (total - score) / total # normalize
     assert score >= 0.0 and score <= 1.0
+    #if u["rosname"] == v["rosname"]:
+    #    print "cmp('{}') [{}]".format(u["rosname"], score)
     return score
 
 
@@ -439,7 +475,7 @@ def edge_subst_cost(a, b):
     # final result is a cost in [0.0, 1.0]
     #   where 0.0 is perfect and 1.0 is completely wrong
     if a["link_type"] != b["link_type"]:
-        return 1.0
+        return 2.0
     n = len(b)
     if n == 1:
         return 0.0
@@ -455,6 +491,7 @@ def edge_subst_cost(a, b):
         score -= cmp_getset_ext(a, b)
     score = (total - score) / total # normalize
     assert score >= 0.0 and score <= 1.0
+    #print "edge cmp('{}', '{}') [{}]".format(a["rosname"], b["rosname"], score)
     return score
 
 def cmp_link(a, b):
@@ -544,7 +581,7 @@ def cmp_traceability_list(t1, t2):
     y = f1(n_file, p_file, s_file)
     z = f1(n_line, p_line, s_line)
     # F1 for packages > F1 for files > F1 for lines
-    penalty = (x+x+x + y+y + z) / 6.0
+    penalty = 1.0 - (x+x+x + y+y + z) / 6.0
     assert penalty >= 0.0 and penalty <= 1.0
     return penalty
 
