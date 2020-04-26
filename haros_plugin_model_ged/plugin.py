@@ -67,11 +67,14 @@ LTYPES = {
 ###############################################################################
 
 def configuration_analysis(iface, config):
-    truth = config.user_attributes.get("haros_plugin_model_ged")
+    attr = config.user_attributes.get("haros_plugin_model_ged")
+    if attr is None:
+        return
+    truth = attr.get("truth")
     if truth is None:
         return
-    n = truth_items(truth)
     truth = truth_to_nx(truth)
+    n = len(truth.nodes) + len(truth.edges)
     model = config_to_nx(config)
     paths, s_ged = calc_edit_paths(truth, model)
     model = config_to_nx(config, ext=True)
@@ -227,22 +230,22 @@ def config_to_nx(config, ext=False):
     G = nx.MultiDiGraph()
     for node in config.nodes.enabled:
         attrs = node_attrs(node, ext=ext)
-        uid = "[{}]{}".format(len(G), attrs["rosname"])
+        uid = "[N{}]{}".format(len(G), attrs["rosname"])
         objs[node] = uid
         G.add_node(uid, **attrs)
     for topic in config.topics.enabled:
         attrs = topic_attrs(topic, ext=ext)
-        uid = "[{}]{}".format(len(G), attrs["rosname"])
+        uid = "[T{}]{}".format(len(G), attrs["rosname"])
         objs[topic] = uid
         G.add_node(uid, **attrs)
     for service in config.services.enabled:
         attrs = service_attrs(service, ext=ext)
-        uid = "[{}]{}".format(len(G), attrs["rosname"])
+        uid = "[S{}]{}".format(len(G), attrs["rosname"])
         objs[service] = uid
         G.add_node(uid, **attrs)
     for param in config.parameters.enabled:
         attrs = param_attrs(param, ext=ext)
-        uid = "[{}]{}".format(len(G), attrs["rosname"])
+        uid = "[P{}]{}".format(len(G), attrs["rosname"])
         objs[param] = uid
         G.add_node(uid, **attrs)
     for node in config.nodes.enabled:
@@ -291,85 +294,143 @@ def config_to_nx(config, ext=False):
 
 def truth_to_nx(truth):
     G = nx.MultiDiGraph()
-    for node in truth["nodes"]:
+    launch = truth.get("launch")
+    if launch:
+        truth_launch_to_nx(launch, G)
+    links = truth.get("links")
+    if links:
+        truth_msg_links_to_nx(links, G)
+        truth_srv_links_to_nx(links, G)
+        truth_param_links_to_nx(links, G)
+    return G
+
+def truth_launch_to_nx(launch, G):
+    for node in launch.get("nodes", ()):
         attrs = dict(node)
-        uid = attrs["id"]
-        del attrs["id"]
+        uid = "[N]" + attrs["rosname"]
         attrs["resource_type"] = NODE
         G.add_node(uid, **attrs)
-    for topic in truth["topics"]:
-        attrs = dict(topic)
-        uid = attrs["id"]
-        del attrs["id"]
-        attrs["resource_type"] = TOPIC
-        G.add_node(uid, **attrs)
-    for service in truth["services"]:
-        attrs = dict(service)
-        uid = attrs["id"]
-        del attrs["id"]
-        attrs["resource_type"] = SERVICE
-        G.add_node(uid, **attrs)
-    for param in truth["parameters"]:
+    for param in launch.get("parameters", ()):
         attrs = dict(param)
-        uid = attrs["id"]
-        del attrs["id"]
+        uid = "[P]" + attrs["rosname"]
         attrs["resource_type"] = PARAMETER
         G.add_node(uid, **attrs)
-    for link in truth["publishers"]:
-        s = link["node"]
-        t = link["topic"]
+
+def truth_msg_links_to_nx(links, G):
+    for link in links.get("publishers", ()):
+        topic_from_link(link, G)
+        s = "[N]" + link["node"]
+        t = "[T]" + link["topic"]
         uid = "{} -> {}".format(s, t)
         attrs = dict(link)
         del attrs["node"]
         del attrs["topic"]
         attrs["link_type"] = PUBLISH
         G.add_edge(s, t, key=uid, **attrs)
-    for link in truth["subscribers"]:
-        s = link["topic"]
-        t = link["node"]
+    for link in links.get("subscribers", ()):
+        topic_from_link(link, G)
+        s = "[T]" + link["topic"]
+        t = "[N]" + link["node"]
         uid = "{} -> {}".format(s, t)
         attrs = dict(link)
         del attrs["node"]
         del attrs["topic"]
         attrs["link_type"] = SUBSCRIBE
         G.add_edge(s, t, key=uid, **attrs)
-    for link in truth["clients"]:
-        s = link["node"]
-        t = link["service"]
+
+def truth_srv_links_to_nx(links, G):
+    for link in links.get("clients", ()):
+        service_from_link(link, G)
+        s = "[N]" + link["node"]
+        t = "[S]" + link["service"]
         uid = "{} -> {}".format(s, t)
         attrs = dict(link)
         del attrs["node"]
         del attrs["service"]
         attrs["link_type"] = CLIENT
         G.add_edge(s, t, key=uid, **attrs)
-    for link in truth["servers"]:
-        s = link["service"]
-        t = link["node"]
+    for link in links.get("servers", ()):
+        service_from_link(link, G)
+        s = "[S]" + link["service"]
+        t = "[N]" + link["node"]
         uid = "{} -> {}".format(s, t)
         attrs = dict(link)
         del attrs["node"]
         del attrs["service"]
         attrs["link_type"] = SERVER
         G.add_edge(s, t, key=uid, **attrs)
-    for link in truth["sets"]:
-        s = link["node"]
-        t = link["parameter"]
+
+def truth_param_links_to_nx(links, G):
+    for link in links.get("sets", ()):
+        param_from_link(link, G)
+        s = "[N]" + link["node"]
+        t = "[P]" + link["parameter"]
         uid = "{} -> {}".format(s, t)
         attrs = dict(link)
         del attrs["node"]
         del attrs["parameter"]
         attrs["link_type"] = SET
         G.add_edge(s, t, key=uid, **attrs)
-    for link in truth["gets"]:
-        s = link["parameter"]
-        t = link["node"]
+    for link in links.get("gets", ()):
+        param_from_link(link, G)
+        s = "[P]" + link["parameter"]
+        t = "[N]" + link["node"]
         uid = "{} -> {}".format(s, t)
         attrs = dict(link)
         del attrs["node"]
         del attrs["parameter"]
         attrs["link_type"] = GET
         G.add_edge(s, t, key=uid, **attrs)
-    return G
+
+
+def topic_from_link(link, G):
+    rosname = link["topic"]
+    uid = "[T]" + rosname
+    attrs = G.nodes.get(uid)
+    if attrs is None:
+        attrs = {
+            "resource_type": TOPIC,
+            "rosname": rosname,
+            "conditional": False,
+            "traceability": []
+        }
+        G.add_node(uid, **attrs)
+        attrs = G.nodes[uid]
+    attrs["conditional"] = attrs["conditional"] or link["conditional"]
+    attrs["traceability"].append(link["traceability"])
+
+def service_from_link(link, G):
+    rosname = link["service"]
+    uid = "[S]" + rosname
+    attrs = G.nodes.get(uid)
+    if attrs is None:
+        attrs = {
+            "resource_type": SERVICE,
+            "rosname": rosname,
+            "conditional": False,
+            "traceability": []
+        }
+        G.add_node(uid, **attrs)
+        attrs = G.nodes[uid]
+    attrs["conditional"] = attrs["conditional"] or link["conditional"]
+    attrs["traceability"].append(link["traceability"])
+
+def param_from_link(link, G):
+    rosname = link["parameter"]
+    uid = "[P]" + rosname
+    attrs = G.nodes.get(uid)
+    if attrs is None:
+        attrs = {
+            "resource_type": PARAMETER,
+            "rosname": rosname,
+            "default_value": None,
+            "conditional": False,
+            "traceability": []
+        }
+        G.add_node(uid, **attrs)
+        attrs = G.nodes[uid]
+    attrs["conditional"] = attrs["conditional"] or link["conditional"]
+    attrs["traceability"].append(link["traceability"])
 
 
 ###############################################################################
@@ -725,21 +786,6 @@ def cmp_traceability(t1, t2, d):
         d.append(("traceability", _t, _f))
         return 1.0 / 6.0
     return 0.0
-
-
-def truth_items(truth):
-    n = 0
-    n += len(truth["nodes"])
-    n += len(truth["topics"])
-    n += len(truth["services"])
-    n += len(truth["parameters"])
-    n += len(truth["publishers"])
-    n += len(truth["subscribers"])
-    n += len(truth["clients"])
-    n += len(truth["servers"])
-    n += len(truth["sets"])
-    n += len(truth["gets"])
-    return n
 
 
 ###############################################################################
