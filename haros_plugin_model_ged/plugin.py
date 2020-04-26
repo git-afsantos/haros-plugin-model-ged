@@ -22,6 +22,53 @@
 
 
 ###############################################################################
+# Notes
+###############################################################################
+
+# YAML Ground Truth Format
+"""
+user_data:
+    haros_plugin_model_ged:
+        truth:
+            launch:
+                nodes:
+                    - rosname: /full/name
+                      node_type: pkg/type
+                      args: []
+                      conditional: false
+                      traceability:
+                        package: pkg
+                        file: path/to/file.launch
+                        line: 42
+                parameters:
+                    - rosname: /full/name
+                      default_value: null
+                      conditional: false
+                      traceability:
+                        package: pkg
+                        file: path/to/file.launch
+                        line: 42
+            links:
+                publishers:
+                    - node: /rosname
+                      topic: /rosname
+                      rosname: /before_remaps
+                      msg_type: std_msgs/Empty
+                      queue_size: 10
+                      conditional: false
+                      traceability:
+                        package: pkg
+                        file: src/file.cpp
+                        line: 29
+                subscribers: []
+                servers: []
+                clients: []
+                sets: []
+                gets: []
+"""
+
+
+###############################################################################
 # Imports
 ###############################################################################
 
