@@ -26,6 +26,7 @@
 ###############################################################################
 
 from builtins import range
+from collections import namedtuple
 
 import networkx as nx
 
@@ -38,12 +39,28 @@ TOPIC = 2
 SERVICE = 3
 PARAMETER = 4
 
+RTYPES = {
+    NODE: "node",
+    TOPIC: "topic",
+    SERVICE: "service",
+    PARAMETER: "parameter"
+}
+
 PUBLISH = 1
 SUBSCRIBE = 2
 SERVER = 3
 CLIENT = 4
 GET = 5
 SET = 6
+
+LTYPES = {
+    PUBLISH: "topic publisher",
+    SUBSCRIBE: "topic subscriber",
+    SERVER: "service server",
+    CLIENT: "service client",
+    GET: "parameter reader",
+    SET: "parameter writer"
+}
 
 ###############################################################################
 # Plugin Entry Point
@@ -56,7 +73,7 @@ def configuration_analysis(iface, config):
     n = truth_items(truth)
     truth = truth_to_nx(truth)
     model = config_to_nx(config)
-    s_ged = calc_ged(truth, model)
+    paths, s_ged = calc_edit_paths(truth, model)
     model = config_to_nx(config, ext=True)
     f_ged = calc_ged(truth, model)
     paths, cost = calc_edit_paths(truth, model)
@@ -66,19 +83,8 @@ def configuration_analysis(iface, config):
         ("Simple GED: {}, Full GED: {}, N: {}, Es: {}, Ef: {}"
          "; Edit Path Cost: {}").format(
             s_ged, f_ged, n, s_ged / n, f_ged / n, cost))
-    with open("ged-output.txt", "w") as f:
-        f.write("{}\n".format("\n".join([
-            "---- TRUTH NODES ----",
-            str(truth.nodes.values()),
-            "---- TRUTH EDGES ----",
-            str(truth.edges.values()),
-            "---- MODEL NODES ----",
-            str(model.nodes.values()),
-            "---- MODEL EDGES ----",
-            str(model.edges.values()),
-            "---- EDIT PATHS ----",
-            str(paths)
-        ])))
+    diff = diff_from_paths(paths, truth, model)
+    write_output("ged-output.txt", truth, model, paths, diff)
     iface.export_file("ged-output.txt")
 
 
@@ -244,32 +250,38 @@ def config_to_nx(config, ext=False):
             attrs = topiclink_attrs(link, PUBLISH, ext=ext)
             s = objs[link.node]
             t = objs[link.topic]
-            G.add_edge(s, t, key=s+t, **attrs)
+            uid = "{} -> {}".format(s, t)
+            G.add_edge(s, t, key=uid, **attrs)
         for link in node.subscribers:
             attrs = topiclink_attrs(link, SUBSCRIBE, ext=ext)
             s = objs[link.topic]
             t = objs[link.node]
-            G.add_edge(s, t, key=s+t, **attrs)
+            uid = "{} -> {}".format(s, t)
+            G.add_edge(s, t, key=uid, **attrs)
         for link in node.servers:
             attrs = srvlink_attrs(link, SERVICE, ext=ext)
             s = objs[link.service]
             t = objs[link.node]
-            G.add_edge(s, t, key=s+t, **attrs)
+            uid = "{} -> {}".format(s, t)
+            G.add_edge(s, t, key=uid, **attrs)
         for link in node.clients:
             attrs = srvlink_attrs(link, CLIENT, ext=ext)
             s = objs[link.node]
             t = objs[link.service]
-            G.add_edge(s, t, key=s+t, **attrs)
+            uid = "{} -> {}".format(s, t)
+            G.add_edge(s, t, key=uid, **attrs)
         for link in node.reads:
             attrs = paramlink_attrs(link, GET, ext=ext)
             s = objs[link.parameter]
             t = objs[link.node]
-            G.add_edge(s, t, key=s+t, **attrs)
+            uid = "{} -> {}".format(s, t)
+            G.add_edge(s, t, key=uid, **attrs)
         for link in node.writes:
             attrs = paramlink_attrs(link, SET, ext=ext)
             s = objs[link.node]
             t = objs[link.parameter]
-            G.add_edge(s, t, key=s+t, **attrs)
+            uid = "{} -> {}".format(s, t)
+            G.add_edge(s, t, key=uid, **attrs)
     return G
 
 
@@ -306,51 +318,57 @@ def truth_to_nx(truth):
     for link in truth["publishers"]:
         s = link["node"]
         t = link["topic"]
+        uid = "{} -> {}".format(s, t)
         attrs = dict(link)
         del attrs["node"]
         del attrs["topic"]
         attrs["link_type"] = PUBLISH
-        G.add_edge(s, t, **attrs)
+        G.add_edge(s, t, key=uid, **attrs)
     for link in truth["subscribers"]:
         s = link["topic"]
         t = link["node"]
+        uid = "{} -> {}".format(s, t)
         attrs = dict(link)
         del attrs["node"]
         del attrs["topic"]
         attrs["link_type"] = SUBSCRIBE
-        G.add_edge(s, t, **attrs)
+        G.add_edge(s, t, key=uid, **attrs)
     for link in truth["clients"]:
         s = link["node"]
         t = link["service"]
+        uid = "{} -> {}".format(s, t)
         attrs = dict(link)
         del attrs["node"]
         del attrs["service"]
         attrs["link_type"] = CLIENT
-        G.add_edge(s, t, **attrs)
+        G.add_edge(s, t, key=uid, **attrs)
     for link in truth["servers"]:
         s = link["service"]
         t = link["node"]
+        uid = "{} -> {}".format(s, t)
         attrs = dict(link)
         del attrs["node"]
         del attrs["service"]
         attrs["link_type"] = SERVER
-        G.add_edge(s, t, **attrs)
+        G.add_edge(s, t, key=uid, **attrs)
     for link in truth["sets"]:
         s = link["node"]
         t = link["parameter"]
+        uid = "{} -> {}".format(s, t)
         attrs = dict(link)
         del attrs["node"]
         del attrs["parameter"]
         attrs["link_type"] = SET
-        G.add_edge(s, t, **attrs)
+        G.add_edge(s, t, key=uid, **attrs)
     for link in truth["gets"]:
         s = link["parameter"]
         t = link["node"]
+        uid = "{} -> {}".format(s, t)
         attrs = dict(link)
         del attrs["node"]
         del attrs["parameter"]
         attrs["link_type"] = GET
-        G.add_edge(s, t, **attrs)
+        G.add_edge(s, t, key=uid, **attrs)
     return G
 
 
@@ -385,7 +403,7 @@ def calc_edit_paths(G1, G2):
 # node_del_cost(G1.nodes[n1])
 # node_ins_cost(G2.nodes[n2])
 
-def node_subst_cost(u, v):
+def node_subst_cost(u, v, diff=False):
     # u: graph node from ground truth
     # v: graph node from extracted model
     # should be the dict attributes for each node
@@ -393,70 +411,97 @@ def node_subst_cost(u, v):
     #   where 0.0 is perfect and 1.0 is completely wrong
     if u["resource_type"] != v["resource_type"]:
         return 2.0
+    d = []
     n = len(v)
     assert n >= 2, str(v)
     total = float(n - 1) # ignore 'resource_type'
     score = total # start with everything right and apply penalties
-    score -= cmp_resource(u, v)
+    score -= cmp_resource(u, v, d)
     if n > 2:
         if u["resource_type"] == NODE:
-            score -= cmp_node_ext(u, v)
+            score -= cmp_node_ext(u, v, d)
         elif u["resource_type"] == TOPIC:
-            score -= cmp_topic_ext(u, v)
+            score -= cmp_topic_ext(u, v, d)
         elif u["resource_type"] == SERVICE:
-            score -= cmp_service_ext(u, v)
+            score -= cmp_service_ext(u, v, d)
         else:
             assert u["resource_type"] == PARAMETER
-            score -= cmp_param_ext(u, v)
+            score -= cmp_param_ext(u, v, d)
     score = (total - score) / total # normalize
     assert score >= 0.0 and score <= 1.0
-    #if u["rosname"] == v["rosname"]:
-    #    print "cmp('{}') [{}]".format(u["rosname"], score)
+    if diff:
+        return score, d
     return score
 
 
-def cmp_resource(u, v):
+def cmp_resource(u, v, d):
     penalty = 0.0
-    if "?" in v["rosname"]:
+    udata = u["rosname"]
+    vdata = v["rosname"]
+    if "?" in vdata:
         penalty += 0.5
-    elif u["rosname"] != v["rosname"]:
+        d.append(("rosname", udata, vdata))
+    elif udata != vdata:
         penalty += 1.0
+        d.append(("rosname", udata, vdata))
     return penalty
 
-def cmp_node_ext(u, v):
+def cmp_node_ext(u, v, d):
     penalty = 0.0
-    if "?" in v["node_type"]:
+    udata = u["node_type"]
+    vdata = v["node_type"]
+    if "?" in vdata:
         penalty += 0.5
-    elif u["node_type"] != v["node_type"]:
+        d.append(("node_type", udata, vdata))
+    elif udata != vdata:
         penalty += 1.0
-    if u["args"] != v["args"]:
+        d.append(("node_type", udata, vdata))
+    udata = u["args"]
+    vdata = v["args"]
+    if udata != vdata:
         penalty += 1.0
-    if u["conditional"] != v["conditional"]:
+        d.append(("args", udata, vdata))
+    udata = u["conditional"]
+    vdata = v["conditional"]
+    if udata != vdata:
         penalty += 1.0
-    penalty += cmp_traceability(u["traceability"], v["traceability"])
+        d.append(("conditional", udata, vdata))
+    penalty += cmp_traceability(u["traceability"], v["traceability"], d)
     return penalty
 
-def cmp_topic_ext(u, v):
+def cmp_topic_ext(u, v, d):
     penalty = 0.0
-    if u["conditional"] != v["conditional"]:
+    udata = u["conditional"]
+    vdata = v["conditional"]
+    if udata != vdata:
         penalty += 1.0
-    penalty += cmp_traceability_list(u["traceability"], v["traceability"])
+        d.append(("conditional", udata, vdata))
+    penalty += cmp_traceability_list(u["traceability"], v["traceability"], d)
     return penalty
 
-def cmp_service_ext(u, v):
+def cmp_service_ext(u, v, d):
     penalty = 0.0
-    if u["conditional"] != v["conditional"]:
+    udata = u["conditional"]
+    vdata = v["conditional"]
+    if udata != vdata:
         penalty += 1.0
-    penalty += cmp_traceability_list(u["traceability"], v["traceability"])
+        d.append(("conditional", udata, vdata))
+    penalty += cmp_traceability_list(u["traceability"], v["traceability"], d)
     return penalty
 
-def cmp_param_ext(u, v):
+def cmp_param_ext(u, v, d):
     penalty = 0.0
-    if u["default_value"] != v["default_value"]:
+    udata = u["default_value"]
+    vdata = v["default_value"]
+    if udata != vdata:
         penalty += 1.0
-    if u["conditional"] != v["conditional"]:
+        d.append(("default_value", udata, vdata))
+    udata = u["conditional"]
+    vdata = v["conditional"]
+    if udata != vdata:
         penalty += 1.0
-    penalty += cmp_traceability_list(u["traceability"], v["traceability"])
+        d.append(("conditional", udata, vdata))
+    penalty += cmp_traceability_list(u["traceability"], v["traceability"], d)
     return penalty
 
 
@@ -468,7 +513,7 @@ def cmp_param_ext(u, v):
 # edge_del_cost(G1[u1][v1])
 # edge_ins_cost(G2[u2][v2])
 
-def edge_subst_cost(a, b):
+def edge_subst_cost(a, b, diff=False):
     # receives the edge attribute dictionaries as inputs
     # a: graph edge from ground truth
     # b: graph edge from extracted model
@@ -476,53 +521,74 @@ def edge_subst_cost(a, b):
     #   where 0.0 is perfect and 1.0 is completely wrong
     if a["link_type"] != b["link_type"]:
         return 2.0
+    d = []
     n = len(b)
     if n == 1:
         return 0.0
     total = float(n - 1) # ignore 'link_type'
     score = total # start with everything right and apply penalties
-    score -= cmp_link(a, b)
+    score -= cmp_link(a, b, d)
     if a["link_type"] == PUBLISH or a["link_type"] == SUBSCRIBE:
-        score -= cmp_pubsub_ext(a, b)
+        score -= cmp_pubsub_ext(a, b, d)
     elif a["link_type"] == SERVER or a["link_type"] == CLIENT:
-        score -= cmp_srvcli_ext(a, b)
+        score -= cmp_srvcli_ext(a, b, d)
     else:
         assert a["link_type"] == GET or a["link_type"] == SET
-        score -= cmp_getset_ext(a, b)
+        score -= cmp_getset_ext(a, b, d)
     score = (total - score) / total # normalize
     assert score >= 0.0 and score <= 1.0
-    #print "edge cmp('{}', '{}') [{}]".format(a["rosname"], b["rosname"], score)
+    if diff:
+        return score, d
     return score
 
-def cmp_link(a, b):
+def cmp_link(a, b, d):
     penalty = 0.0
-    if "?" in b["rosname"]:
+    adata = a["rosname"]
+    bdata = b["rosname"]
+    if "?" in bdata:
         penalty += 0.5
-    elif a["rosname"] != b["rosname"]:
+        d.append(("rosname", adata, bdata))
+    elif adata != bdata:
         penalty += 1.0
-    if a["conditional"] != b["conditional"]:
+        d.append(("rosname", adata, bdata))
+    adata = a["conditional"]
+    bdata = b["conditional"]
+    if adata != bdata:
         penalty += 1.0
-    penalty += cmp_traceability(a["traceability"], b["traceability"])
+        d.append(("conditional", adata, bdata))
+    penalty += cmp_traceability(a["traceability"], b["traceability"], d)
     return penalty
 
-def cmp_pubsub_ext(a, b):
+def cmp_pubsub_ext(a, b, d):
     penalty = 0.0
-    if a["queue_size"] != b["queue_size"]:
+    adata = a["queue_size"]
+    bdata = b["queue_size"]
+    if adata != bdata:
         penalty += 1.0
-    if a["msg_type"] != b["msg_type"]:
+        d.append(("queue_size", adata, bdata))
+    adata = a["msg_type"]
+    bdata = b["msg_type"]
+    if adata != bdata:
         penalty += 1.0
+        d.append(("msg_type", adata, bdata))
     return penalty
 
-def cmp_srvcli_ext(a, b):
+def cmp_srvcli_ext(a, b, d):
     penalty = 0.0
-    if a["srv_type"] != b["srv_type"]:
+    adata = a["srv_type"]
+    bdata = b["srv_type"]
+    if adata != bdata:
         penalty += 1.0
+        d.append(("srv_type", adata, bdata))
     return penalty
 
-def cmp_getset_ext(a, b):
+def cmp_getset_ext(a, b, d):
     penalty = 0.0
-    if a["param_type"] != b["param_type"]:
+    adata = a["param_type"]
+    bdata = b["param_type"]
+    if adata != bdata:
         penalty += 1.0
+        d.append(("param_type", adata, bdata))
     return penalty
 
 
@@ -530,51 +596,75 @@ def cmp_getset_ext(a, b):
 # GED Cost Helper Functions
 ###############################################################################
 
-def cmp_traceability_list(t1, t2):
+def cmp_traceability_list(t1, t2, d):
     assert len(t1) > 0
     if not t2:
         return 1.0
     pd1 = loc_list_to_dict(t1) # package -> file -> {line}
     pd2 = loc_list_to_dict(t2) # package -> file -> {line}
-    n_pkg = 0 # expected packages
-    p_pkg = 0 # predicted packages
-    s_pkg = 0 # spurious packages
-    n_file = 0 # expected files
-    p_file = 0 # predicted files
-    s_file = 0 # spurious files
-    n_line = 0 # expected lines
-    p_line = 0 # predicted lines
-    s_line = 0 # spurious lines
+    # expected, predicted, spurious packages
+    n_pkg = p_pkg = s_pkg = 0
+    # expected, predicted, spurious files
+    n_file = p_file = s_file = 0
+    # expected, predicted, spurious lines
+    n_line = p_line = s_line = 0
     # calculate predictions
     for p, fd1 in pd1.items():
         n_pkg += 1
         fd2 = pd2.get(p)
         if fd2 is None:
+            # ---- begin reporting ----
+            for f, ls1 in fd1.items():
+                for l in ls1:
+                    d.append(("traceability", (p, f, l), None))
+            # ---- end reporting ----
             continue
         p_pkg += 1
+        _f = (p, None, None)
         for f, ls1 in fd1.items():
             n_file += 1
             ls2 = fd2.get(f)
             if ls2 is None:
+                # ---- begin reporting ----
+                for l in ls1:
+                    d.append(("traceability", (p, f, l), _f))
+                # ---- end reporting ----
                 continue
             p_file += 1
+            _f = (p, f, None)
             for l in ls1:
                 n_line += 1
                 if l in ls2:
                     p_line += 1
+                else:
+                    # ---- begin reporting ----
+                    d.append(("traceability", (p, f, l), _f))
+                    # ---- end reporting ----
     # calculate spurious
     for p, fd2 in pd2.items():
         fd1 = pd1.get(p)
         if fd1 is None:
+            # ---- begin reporting ----
+            for f, ls2 in fd2.items():
+                for l in ls2:
+                    d.append(("traceability", None, (p, f, l)))
+            # ---- end reporting ----
             s_pkg += 1
             continue
         for f, ls2 in fd2.items():
             ls1 = fd1.get(f)
             if ls1 is None:
+                # ---- begin reporting ----
+                for l in ls2:
+                    d.append(("traceability", None, (p, f, l)))
+                # ---- end reporting ----
                 s_file += 1
                 continue
             for l in ls2:
                 if l not in ls1:
+                    # ---- begin reporting ----
+                    d.append(("traceability", None, (p, f, l)))
+                    # ---- end reporting ----
                     s_line += 1
     # F1 measures for package, file and line
     x = f1(n_pkg, p_pkg, s_pkg)
@@ -617,14 +707,22 @@ def f1(expected, predicted, spurious):
     return (2.0 * p * r) / (p + r)
 
 
-def cmp_traceability(t1, t2):
+def cmp_traceability(t1, t2, d):
     # returns the penalty for a source location
     assert t1 is not None
-    if t2 is None or t2["package"] != t1["package"]:
+    _t = (t1["package"], t1["file"], t1["line"])
+    if t2 is None:
+        d.append(("traceability", _t, t2))
         return 1.0
-    if t2["file"] != t1["file"]:
+    _f = (t2["package"], t2["file"], t2["line"])
+    if _t[0] != _f[0]:
+        d.append(("traceability", _t, _f))
+        return 1.0
+    if _t[1] != _f[1]:
+        d.append(("traceability", _t, _f))
         return 0.5
-    if t2["line"] != t1["line"]:
+    if _t[2] != _f[2]:
+        d.append(("traceability", _t, _f))
         return 1.0 / 6.0
     return 0.0
 
@@ -643,3 +741,127 @@ def truth_items(truth):
     n += len(truth["gets"])
     return n
 
+
+###############################################################################
+# Diff Calculation
+###############################################################################
+
+Diff = namedtuple("Diff", (
+    "partial_nodes",
+    "missed_nodes",
+    "spurious_nodes",
+    "partial_edges", 
+    "missed_edges",
+    "spurious_edges"
+))
+
+def _new_diff():
+    return Diff([], [], [], [], [], [])
+
+def diff_from_paths(paths, truth, model):
+    diff = _new_diff()
+    for node_list, edge_list in paths:
+        for u, v in node_list:
+            assert not (u is None and v is None)
+            if u is None:
+                d = model.nodes[v]
+                t = RTYPES[d["resource_type"]]
+                diff.spurious_nodes.append((t, v))
+            elif v is None:
+                d = truth.nodes[u]
+                t = RTYPES[d["resource_type"]]
+                diff.missed_nodes.append((t, u))
+            else:
+                _, d = node_subst_cost(truth.nodes[u], model.nodes[v], diff=True)
+                if d:
+                    t = RTYPES[truth.nodes[u]["resource_type"]]
+                    diff.partial_nodes.append((t, u, v, d))
+        for a, b in edge_list:
+            assert not (a is None and b is None)
+            if a is None:
+                d = model.edges[b]
+                t = LTYPES[d["link_type"]]
+                diff.spurious_edges.append((t, b[2]))
+            elif b is None:
+                d = truth.edges[a]
+                t = LTYPES[d["link_type"]]
+                diff.missed_edges.append((t, a[2]))
+            else:
+                e1 = truth.edges[a]
+                e2 = model.edges[b]
+                _, d = edge_subst_cost(e1, e2, diff=True)
+                if d:
+                    t = LTYPES[e1["link_type"]]
+                    diff.partial_edges.append((t, a[2], b[2], d))
+    return diff
+
+
+###############################################################################
+# Formatting
+###############################################################################
+
+def write_output(fname, truth, model, paths, diff):
+    with open(fname, "w") as f:
+        f.write("{}\n".format("\n".join([
+            "---- TRUTH NODES ----",
+            str(truth.nodes.values()),
+            "---- TRUTH EDGES ----",
+            str(truth.edges.values()),
+            "---- MODEL NODES ----",
+            str(model.nodes.values()),
+            "---- MODEL EDGES ----",
+            str(model.edges.values()),
+            "---- EDIT PATHS ----",
+            format_edit_paths(paths),
+            "---- GRAPH DIFF ----",
+            format_diff(diff)
+        ])))
+
+
+def format_edit_paths(paths):
+    if not paths:
+        return "nil"
+    parts = []
+    for node_list, edge_list in paths:
+        parts.extend(format_node_list(node_list))
+        parts.extend(format_edge_list(edge_list))
+    return "\n".join(parts)
+
+def format_node_list(node_list):
+    parts = []
+    for u, v in node_list:
+        if u is None:
+            parts.append("insert('{}')".format(v))
+        elif v is None:
+            parts.append("remove('{}')".format(u))
+        else:
+            parts.append("subst('{}', '{}')".format(u, v))
+    return parts
+
+def format_edge_list(edge_list):
+    parts = []
+    for a, b in edge_list:
+        if a is None:
+            parts.append("insert('{} -> {}')".format(b[0], b[1]))
+        elif b is None:
+            parts.append("remove('{} -> {}')".format(a[0], a[1]))
+        else:
+            parts.append("subst('{} -> {}', '{} -> {}')".format(
+                a[0], a[1], b[0], b[1]))
+    return parts
+
+def format_diff(diff):
+    parts = []
+    for item in diff.missed_nodes:
+        parts.append("missing{}".format(item))
+    for item in diff.missed_edges:
+        parts.append("missing{}".format(item))
+    for item in diff.spurious_nodes:
+        parts.append("fantasy{}".format(item))
+    for item in diff.spurious_edges:
+        parts.append("fantasy{}".format(item))
+    for item in diff.partial_nodes:
+        parts.append("partial{}".format(item))
+    for item in diff.partial_edges:
+        parts.append("partial{}".format(item))
+    return "\n".join(parts)
