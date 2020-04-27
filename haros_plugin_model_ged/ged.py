@@ -25,6 +25,7 @@
 # Imports
 ###############################################################################
 
+from builtins import range
 from collections import namedtuple
 
 from networkx import graph_edit_distance, optimal_edit_paths
@@ -120,31 +121,19 @@ def cmp_node_ext(u, v, d):
     if udata != vdata:
         penalty += 1.0
         d.append(("args", udata, vdata))
-    udata = u["conditional"]
-    vdata = v["conditional"]
-    if udata != vdata:
-        penalty += 1.0
-        d.append(("conditional", udata, vdata))
+    penalty += cmp_conditions(u["conditions"], v["conditions"], d)
     penalty += cmp_traceability(u["traceability"], v["traceability"], d)
     return penalty
 
 def cmp_topic_ext(u, v, d):
     penalty = 0.0
-    udata = u["conditional"]
-    vdata = v["conditional"]
-    if udata != vdata:
-        penalty += 1.0
-        d.append(("conditional", udata, vdata))
+    penalty += cmp_conditions(u["conditions"], v["conditions"], d)
     penalty += cmp_traceability_list(u["traceability"], v["traceability"], d)
     return penalty
 
 def cmp_service_ext(u, v, d):
     penalty = 0.0
-    udata = u["conditional"]
-    vdata = v["conditional"]
-    if udata != vdata:
-        penalty += 1.0
-        d.append(("conditional", udata, vdata))
+    penalty += cmp_conditions(u["conditions"], v["conditions"], d)
     penalty += cmp_traceability_list(u["traceability"], v["traceability"], d)
     return penalty
 
@@ -155,11 +144,7 @@ def cmp_param_ext(u, v, d):
     if udata != vdata:
         penalty += 1.0
         d.append(("default_value", udata, vdata))
-    udata = u["conditional"]
-    vdata = v["conditional"]
-    if udata != vdata:
-        penalty += 1.0
-        d.append(("conditional", udata, vdata))
+    penalty += cmp_conditions(u["conditions"], v["conditions"], d)
     penalty += cmp_traceability_list(u["traceability"], v["traceability"], d)
     return penalty
 
@@ -210,11 +195,7 @@ def cmp_link(a, b, d):
     elif adata != bdata:
         penalty += 1.0
         d.append(("rosname", adata, bdata))
-    adata = a["conditional"]
-    bdata = b["conditional"]
-    if adata != bdata:
-        penalty += 1.0
-        d.append(("conditional", adata, bdata))
+    penalty += cmp_conditions(a["conditions"], b["conditions"], d)
     penalty += cmp_traceability(a["traceability"], b["traceability"], d)
     return penalty
 
@@ -254,6 +235,30 @@ def cmp_getset_ext(a, b, d):
 ###############################################################################
 # GED Cost Helper Functions
 ###############################################################################
+
+def cmp_conditions(cfg1, cfg2, d):
+    # list of lists of conditions - a path
+    if not cfg1 and cfg2:
+        return 1.0
+    if cfg1 and not cfg2:
+        return 1.0
+    copy = list(cfg2)
+    for cp in cfg1:
+        for i in range(len(copy)):
+            if cp == copy[i]:
+                del copy[i]
+                break
+        else:
+            d.append(("conditions", cp, None))
+    for cp in copy:
+        d.append(("conditions", None, cp))
+    n = len(cfg1)
+    p = len(cfg2) - len(copy)
+    s = len(copy)
+    penalty = 1.0 - f1(n, p, s)
+    assert penalty >= 0.0 and penalty <= 1.0
+    return penalty
+
 
 def cmp_traceability_list(t1, t2, d):
     assert len(t1) > 0

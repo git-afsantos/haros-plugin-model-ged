@@ -30,136 +30,6 @@ from networkx import MultiDiGraph
 from .common import *
 
 ###############################################################################
-# Graph Node Attributes
-###############################################################################
-
-def location_attrs(loc):
-    attrs = {"package": None, "file": None, "line": None}
-    if loc is not None:
-        if loc.package is not None:
-            attrs["package"] = loc.package.name
-        if loc.file is not None:
-            attrs["file"] = loc.file.full_name
-        if loc.line is not None:
-            attrs["line"] = loc.line
-    return attrs
-
-
-def node_attrs(node, ext=False):
-    attrs = {
-        "resource_type": NODE,
-        "rosname": node.rosname.full,
-        # "rosname": node.rosname.own,
-        # "namespace": node.rosname.namespace
-    }
-    if ext:
-        attrs.update({
-            "node_type": node.node.node_name,
-            "args": node.argv,
-            "conditional": bool(node.conditions),
-            "traceability": location_attrs(node.traceability()[0])
-        })
-    return attrs
-
-def topic_attrs(topic, ext=False):
-    attrs = {
-        "resource_type": TOPIC,
-        "rosname": topic.rosname.full,
-        # "rosname": topic.rosname.own,
-        # "namespace": topic.rosname.namespace
-    }
-    if ext:
-        attrs.update({
-            "conditional": bool(topic.conditions),
-            "traceability": [
-                location_attrs(loc) for loc in topic.traceability()]
-        })
-    return attrs
-
-def service_attrs(service, ext=False):
-    attrs = {
-        "resource_type": SERVICE,
-        "rosname": service.rosname.full,
-        # "rosname": service.rosname.own,
-        # "namespace": service.rosname.namespace
-    }
-    if ext:
-        attrs.update({
-            "conditional": bool(service.conditions),
-            "traceability": [
-                location_attrs(loc) for loc in service.traceability()]
-        })
-    return attrs
-
-def param_attrs(param, ext=False):
-    attrs = {
-        "resource_type": PARAMETER,
-        "rosname": param.rosname.full,
-        # "rosname": param.rosname.own,
-        # "namespace": param.rosname.namespace
-    }
-    if ext:
-        attrs.update({
-            "default_value": param.value,
-            "conditional": bool(param.conditions),
-            "traceability": [
-                location_attrs(loc) for loc in param.traceability()]
-        })
-    return attrs
-
-
-###############################################################################
-# Graph Edge Attributes
-###############################################################################
-
-def topiclink_attrs(link, t, ext=False):
-    attrs = {
-        "link_type": t,
-    }
-    if ext:
-        attrs.update({
-            "rosname": link.rosname.full,
-            # "rosname": link.rosname.own,
-            # "namespace": link.rosname.namespace,
-            "conditional": bool(link.conditions),
-            "traceability": location_attrs(link.source_location),
-            "queue_size": link.queue_size,
-            "msg_type": link.type
-        })
-    return attrs
-
-def srvlink_attrs(link, t, ext=False):
-    attrs = {
-        "link_type": t,
-    }
-    if ext:
-        attrs.update({
-            "rosname": link.rosname.full,
-            # "rosname": link.rosname.own,
-            # "namespace": link.rosname.namespace,
-            "conditional": bool(link.conditions),
-            "traceability": location_attrs(link.source_location),
-            "srv_type": link.type
-        })
-    return attrs
-
-def paramlink_attrs(link, t, ext=False):
-    attrs = {
-        "link_type": t,
-    }
-    if ext:
-        attrs.update({
-            "rosname": link.rosname.full,
-            # "rosname": link.rosname.own,
-            # "namespace": link.rosname.namespace,
-            "conditional": bool(link.conditions),
-            "traceability": location_attrs(link.source_location),
-            "param_type": link.type
-        })
-    return attrs
-
-
-###############################################################################
 # HAROS to NetworkX Conversion
 ###############################################################################
 
@@ -224,6 +94,129 @@ def config_to_nx(config, ext=False):
             uid = "{} -> {}".format(s, t)
             G.add_edge(s, t, key=uid, **attrs)
     return G
+
+
+###############################################################################
+# Graph Node Attributes
+###############################################################################
+
+def node_attrs(node, ext=False):
+    attrs = {
+        "resource_type": NODE,
+        "rosname": node.rosname.full
+    }
+    if ext:
+        attrs.update({
+            "node_type": node.node.node_name,
+            "args": node.argv,
+            "conditions": [[condition_attrs(c) for c in node.conditions]],
+            "traceability": location_attrs(node.traceability()[0])
+        })
+    return attrs
+
+def topic_attrs(topic, ext=False):
+    attrs = {
+        "resource_type": TOPIC,
+        "rosname": topic.rosname.full
+    }
+    if ext:
+        attrs.update({
+            "conditions": [[condition_attrs(c) for c in topic.conditions]],
+            "traceability": [
+                location_attrs(loc) for loc in topic.traceability()]
+        })
+    return attrs
+
+def service_attrs(service, ext=False):
+    attrs = {
+        "resource_type": SERVICE,
+        "rosname": service.rosname.full
+    }
+    if ext:
+        attrs.update({
+            "conditions": [[condition_attrs(c) for c in service.conditions]],
+            "traceability": [
+                location_attrs(loc) for loc in service.traceability()]
+        })
+    return attrs
+
+def param_attrs(param, ext=False):
+    attrs = {
+        "resource_type": PARAMETER,
+        "rosname": param.rosname.full
+    }
+    if ext:
+        attrs.update({
+            "default_value": param.value,
+            "conditions": [[condition_attrs(c) for c in param.conditions]],
+            "traceability": [
+                location_attrs(loc) for loc in param.traceability()]
+        })
+    return attrs
+
+
+def condition_attrs(condition):
+    return {
+        "statement": None,
+        "condition": condition.condition,
+        "traceability": location_attrs(condition.location)
+    }
+
+def location_attrs(loc):
+    attrs = {"package": None, "file": None, "line": None}
+    if loc is not None:
+        if loc.package is not None:
+            attrs["package"] = loc.package.name
+        if loc.file is not None:
+            attrs["file"] = loc.file.full_name
+        if loc.line is not None:
+            attrs["line"] = loc.line
+    return attrs
+
+
+###############################################################################
+# Graph Edge Attributes
+###############################################################################
+
+def topiclink_attrs(link, t, ext=False):
+    attrs = {
+        "link_type": t,
+    }
+    if ext:
+        attrs.update({
+            "rosname": link.rosname.full,
+            "conditions": [[condition_attrs(c) for c in link.conditions]],
+            "traceability": location_attrs(link.source_location),
+            "queue_size": link.queue_size,
+            "msg_type": link.type
+        })
+    return attrs
+
+def srvlink_attrs(link, t, ext=False):
+    attrs = {
+        "link_type": t,
+    }
+    if ext:
+        attrs.update({
+            "rosname": link.rosname.full,
+            "conditions": [[condition_attrs(c) for c in link.conditions]],
+            "traceability": location_attrs(link.source_location),
+            "srv_type": link.type
+        })
+    return attrs
+
+def paramlink_attrs(link, t, ext=False):
+    attrs = {
+        "link_type": t,
+    }
+    if ext:
+        attrs.update({
+            "rosname": link.rosname.full,
+            "conditions": [[condition_attrs(c) for c in link.conditions]],
+            "traceability": location_attrs(link.source_location),
+            "param_type": link.type
+        })
+    return attrs
 
 
 ###############################################################################
@@ -329,12 +322,12 @@ def topic_from_link(link, G):
         attrs = {
             "resource_type": TOPIC,
             "rosname": rosname,
-            "conditional": False,
+            "conditions": [],
             "traceability": []
         }
         G.add_node(uid, **attrs)
         attrs = G.nodes[uid]
-    attrs["conditional"] = attrs["conditional"] or link["conditional"]
+    attrs["conditions"].extend(link["conditions"])
     attrs["traceability"].append(link["traceability"])
 
 def service_from_link(link, G):
@@ -345,12 +338,12 @@ def service_from_link(link, G):
         attrs = {
             "resource_type": SERVICE,
             "rosname": rosname,
-            "conditional": False,
+            "conditions": [],
             "traceability": []
         }
         G.add_node(uid, **attrs)
         attrs = G.nodes[uid]
-    attrs["conditional"] = attrs["conditional"] or link["conditional"]
+    attrs["conditions"].extend(link["conditions"])
     attrs["traceability"].append(link["traceability"])
 
 def param_from_link(link, G):
@@ -362,10 +355,10 @@ def param_from_link(link, G):
             "resource_type": PARAMETER,
             "rosname": rosname,
             "default_value": None,
-            "conditional": False,
+            "conditions": [],
             "traceability": []
         }
         G.add_node(uid, **attrs)
         attrs = G.nodes[uid]
-    attrs["conditional"] = attrs["conditional"] or link["conditional"]
+    attrs["conditions"].extend(link["conditions"])
     attrs["traceability"].append(link["traceability"])

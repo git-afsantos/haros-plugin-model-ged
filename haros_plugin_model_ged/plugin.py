@@ -35,7 +35,13 @@ user_data:
                     - rosname: /full/name
                       node_type: pkg/type
                       args: []
-                      conditional: false
+                      conditions:
+                        - - statement: if
+                            condition: x == 0
+                            traceability:
+                                package: pkg
+                                file: path/to/file
+                                line: 1
                       traceability:
                         package: pkg
                         file: path/to/file.launch
@@ -43,7 +49,7 @@ user_data:
                 parameters:
                     - rosname: /full/name
                       default_value: null
-                      conditional: false
+                      conditions: []
                       traceability:
                         package: pkg
                         file: path/to/file.launch
@@ -55,7 +61,7 @@ user_data:
                       rosname: /before_remaps
                       msg_type: std_msgs/Empty
                       queue_size: 10
-                      conditional: false
+                      conditions: []
                       traceability:
                         package: pkg
                         file: src/file.cpp
