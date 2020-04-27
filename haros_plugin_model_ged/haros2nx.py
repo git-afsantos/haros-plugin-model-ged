@@ -25,9 +25,19 @@
 # Imports
 ###############################################################################
 
+from collections import namedtuple
+
 from networkx import MultiDiGraph
 
 from .common import *
+
+###############################################################################
+# Helper Classes
+###############################################################################
+
+Guard = namedtuple("Guard",
+    ("statement", "condition", "package", "file", "line"))
+
 
 ###############################################################################
 # HAROS to NetworkX Conversion
@@ -109,7 +119,7 @@ def node_attrs(node, ext=False):
         attrs.update({
             "node_type": node.node.node_name,
             "args": node.argv,
-            "conditions": [[condition_attrs(c) for c in node.conditions]],
+            "conditions": condition_attrs(node.conditions),
             "traceability": location_attrs(node.traceability()[0])
         })
     return attrs
@@ -121,7 +131,7 @@ def topic_attrs(topic, ext=False):
     }
     if ext:
         attrs.update({
-            "conditions": [[condition_attrs(c) for c in topic.conditions]],
+            "conditions": condition_attrs(topic.conditions),
             "traceability": [
                 location_attrs(loc) for loc in topic.traceability()]
         })
@@ -134,7 +144,7 @@ def service_attrs(service, ext=False):
     }
     if ext:
         attrs.update({
-            "conditions": [[condition_attrs(c) for c in service.conditions]],
+            "conditions": condition_attrs(service.conditions),
             "traceability": [
                 location_attrs(loc) for loc in service.traceability()]
         })
@@ -148,19 +158,21 @@ def param_attrs(param, ext=False):
     if ext:
         attrs.update({
             "default_value": param.value,
-            "conditions": [[condition_attrs(c) for c in param.conditions]],
+            "conditions": condition_attrs(param.conditions),
             "traceability": [
                 location_attrs(loc) for loc in param.traceability()]
         })
     return attrs
 
 
-def condition_attrs(condition):
-    return {
-        "statement": None,
-        "condition": condition.condition,
-        "traceability": location_attrs(condition.location)
-    }
+def condition_attrs(conditions):
+    cfg = {}
+    for condition in conditions:
+        loc = location_attrs(condition.location)
+        g = Guard("if", condition.condition,
+            loc["package"], loc["file"], loc["line"])
+        cfg[g] = {}
+    return cfg
 
 def location_attrs(loc):
     attrs = {"package": None, "file": None, "line": None}
@@ -185,7 +197,7 @@ def topiclink_attrs(link, t, ext=False):
     if ext:
         attrs.update({
             "rosname": link.rosname.full,
-            "conditions": [[condition_attrs(c) for c in link.conditions]],
+            "conditions": condition_attrs(link.conditions),
             "traceability": location_attrs(link.source_location),
             "queue_size": link.queue_size,
             "msg_type": link.type
@@ -199,7 +211,7 @@ def srvlink_attrs(link, t, ext=False):
     if ext:
         attrs.update({
             "rosname": link.rosname.full,
-            "conditions": [[condition_attrs(c) for c in link.conditions]],
+            "conditions": condition_attrs(link.conditions),
             "traceability": location_attrs(link.source_location),
             "srv_type": link.type
         })
@@ -212,7 +224,7 @@ def paramlink_attrs(link, t, ext=False):
     if ext:
         attrs.update({
             "rosname": link.rosname.full,
-            "conditions": [[condition_attrs(c) for c in link.conditions]],
+            "conditions": condition_attrs(link.conditions),
             "traceability": location_attrs(link.source_location),
             "param_type": link.type
         })
@@ -240,11 +252,13 @@ def truth_launch_to_nx(launch, G):
         attrs = dict(node)
         uid = "[N]" + attrs["rosname"]
         attrs["resource_type"] = NODE
+        attrs["conditions"] = cfg_from_list(attrs["conditions"])
         G.add_node(uid, **attrs)
     for param in launch.get("parameters", ()):
         attrs = dict(param)
         uid = "[P]" + attrs["rosname"]
         attrs["resource_type"] = PARAMETER
+        attrs["conditions"] = cfg_from_list(attrs["conditions"])
         G.add_node(uid, **attrs)
 
 def truth_msg_links_to_nx(links, G):
@@ -257,6 +271,7 @@ def truth_msg_links_to_nx(links, G):
         del attrs["node"]
         del attrs["topic"]
         attrs["link_type"] = PUBLISH
+        attrs["conditions"] = cfg_from_list(attrs["conditions"])
         G.add_edge(s, t, key=uid, **attrs)
     for link in links.get("subscribers", ()):
         topic_from_link(link, G)
@@ -267,6 +282,7 @@ def truth_msg_links_to_nx(links, G):
         del attrs["node"]
         del attrs["topic"]
         attrs["link_type"] = SUBSCRIBE
+        attrs["conditions"] = cfg_from_list(attrs["conditions"])
         G.add_edge(s, t, key=uid, **attrs)
 
 def truth_srv_links_to_nx(links, G):
@@ -279,6 +295,7 @@ def truth_srv_links_to_nx(links, G):
         del attrs["node"]
         del attrs["service"]
         attrs["link_type"] = CLIENT
+        attrs["conditions"] = cfg_from_list(attrs["conditions"])
         G.add_edge(s, t, key=uid, **attrs)
     for link in links.get("servers", ()):
         service_from_link(link, G)
@@ -289,6 +306,7 @@ def truth_srv_links_to_nx(links, G):
         del attrs["node"]
         del attrs["service"]
         attrs["link_type"] = SERVER
+        attrs["conditions"] = cfg_from_list(attrs["conditions"])
         G.add_edge(s, t, key=uid, **attrs)
 
 def truth_param_links_to_nx(links, G):
@@ -301,6 +319,7 @@ def truth_param_links_to_nx(links, G):
         del attrs["node"]
         del attrs["parameter"]
         attrs["link_type"] = SET
+        attrs["conditions"] = cfg_from_list(attrs["conditions"])
         G.add_edge(s, t, key=uid, **attrs)
     for link in links.get("gets", ()):
         param_from_link(link, G)
@@ -311,6 +330,7 @@ def truth_param_links_to_nx(links, G):
         del attrs["node"]
         del attrs["parameter"]
         attrs["link_type"] = GET
+        attrs["conditions"] = cfg_from_list(attrs["conditions"])
         G.add_edge(s, t, key=uid, **attrs)
 
 
@@ -322,12 +342,12 @@ def topic_from_link(link, G):
         attrs = {
             "resource_type": TOPIC,
             "rosname": rosname,
-            "conditions": [],
+            "conditions": {},
             "traceability": []
         }
         G.add_node(uid, **attrs)
         attrs = G.nodes[uid]
-    attrs["conditions"].extend(link["conditions"])
+    attrs["conditions"].update(cfg_from_list(link["conditions"]))
     attrs["traceability"].append(link["traceability"])
 
 def service_from_link(link, G):
@@ -338,12 +358,12 @@ def service_from_link(link, G):
         attrs = {
             "resource_type": SERVICE,
             "rosname": rosname,
-            "conditions": [],
+            "conditions": {},
             "traceability": []
         }
         G.add_node(uid, **attrs)
         attrs = G.nodes[uid]
-    attrs["conditions"].extend(link["conditions"])
+    attrs["conditions"].update(cfg_from_list(link["conditions"]))
     attrs["traceability"].append(link["traceability"])
 
 def param_from_link(link, G):
@@ -355,10 +375,25 @@ def param_from_link(link, G):
             "resource_type": PARAMETER,
             "rosname": rosname,
             "default_value": None,
-            "conditions": [],
+            "conditions": {},
             "traceability": []
         }
         G.add_node(uid, **attrs)
         attrs = G.nodes[uid]
-    attrs["conditions"].extend(link["conditions"])
+    attrs["conditions"].update(cfg_from_list(link["conditions"]))
     attrs["traceability"].append(link["traceability"])
+
+
+def cfg_from_list(paths):
+    cfg = {}
+    for path in paths:
+        r = cfg
+        for c in path:
+            g = Guard(c["statement"], c["condition"],
+                      c["package"], c["file"], c["line"])
+            s = r.get(g)
+            if s is None:
+                s = {}
+                r[g] = s
+            r = s
+    return cfg

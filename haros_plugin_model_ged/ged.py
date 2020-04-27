@@ -242,19 +242,25 @@ def cmp_conditions(cfg1, cfg2, d):
         return 1.0
     if cfg1 and not cfg2:
         return 1.0
-    copy = list(cfg2)
-    for cp in cfg1:
-        for i in range(len(copy)):
-            if cp == copy[i]:
-                del copy[i]
-                break
-        else:
-            d.append(("conditions", cp, None))
-    for cp in copy:
-        d.append(("conditions", None, cp))
-    n = len(cfg1)
-    p = len(cfg2) - len(copy)
-    s = len(copy)
+    n = p = s = 0
+    queue = [(cfg1, cfg2)]
+    while queue:
+        new_queue = []
+        for c1, c2 in queue:
+            for g, child1 in c1.items():
+                n += 1
+                child2 = c2.get(g)
+                if child2 is None:
+                    d.append(("conditions", g, None))
+                else:
+                    p += 1
+                    new_queue.append((child1, child2))
+            for g, child2 in c2.items():
+                child1 = c1.get(g)
+                if child1 is None:
+                    s += 1
+                    d.append(("conditions", None, g))
+        queue = new_queue
     penalty = 1.0 - f1(n, p, s)
     assert penalty >= 0.0 and penalty <= 1.0
     return penalty
