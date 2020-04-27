@@ -30,8 +30,6 @@ from collections import namedtuple
 
 from networkx import graph_edit_distance, optimal_edit_paths
 
-from .common import *
-
 ###############################################################################
 # Graph Edit Distance Calculation
 ###############################################################################
@@ -69,23 +67,24 @@ def node_subst_cost(u, v, diff=False):
     # should be the dict attributes for each node
     # final result is a cost in [0.0, 1.0]
     #   where 0.0 is perfect and 1.0 is completely wrong
-    if u["resource_type"] != v["resource_type"]:
+    meta = u["meta"]
+    if not meta.same_type(v["meta"]):
         return 2.0
     d = []
     n = len(v)
     assert n >= 2, str(v)
-    total = float(n - 1) # ignore 'resource_type'
+    total = float(n - 1) # ignore metadata
     score = total # start with everything right and apply penalties
     score -= cmp_resource(u, v, d)
     if n > 2:
-        if u["resource_type"] == NODE:
+        if meta.is_node:
             score -= cmp_node_ext(u, v, d)
-        elif u["resource_type"] == TOPIC:
+        elif meta.is_topic:
             score -= cmp_topic_ext(u, v, d)
-        elif u["resource_type"] == SERVICE:
+        elif meta.is_service:
             score -= cmp_service_ext(u, v, d)
         else:
-            assert u["resource_type"] == PARAMETER
+            assert meta.is_param
             score -= cmp_param_ext(u, v, d)
     score = (total - score) / total # normalize
     assert score >= 0.0 and score <= 1.0
@@ -163,21 +162,22 @@ def edge_subst_cost(a, b, diff=False):
     # b: graph edge from extracted model
     # final result is a cost in [0.0, 1.0]
     #   where 0.0 is perfect and 1.0 is completely wrong
-    if a["link_type"] != b["link_type"]:
+    meta = a["meta"]
+    if not meta.same_type(b["meta"]):
         return 2.0
     d = []
     n = len(b)
     if n == 1:
         return 0.0
-    total = float(n - 1) # ignore 'link_type'
+    total = float(n - 1) # ignore metadata
     score = total # start with everything right and apply penalties
     score -= cmp_link(a, b, d)
-    if a["link_type"] == PUBLISH or a["link_type"] == SUBSCRIBE:
+    if meta.is_msg_link:
         score -= cmp_pubsub_ext(a, b, d)
-    elif a["link_type"] == SERVER or a["link_type"] == CLIENT:
+    elif meta.is_srv_link:
         score -= cmp_srvcli_ext(a, b, d)
     else:
-        assert a["link_type"] == GET or a["link_type"] == SET
+        assert meta.is_param_link
         score -= cmp_getset_ext(a, b, d)
     score = (total - score) / total # normalize
     assert score >= 0.0 and score <= 1.0
@@ -420,32 +420,32 @@ def diff_from_paths(paths, truth, model):
             assert not (u is None and v is None)
             if u is None:
                 d = model.nodes[v]
-                t = RTYPES[d["resource_type"]]
+                t = str(d["meta"])
                 diff.spurious_nodes.append((t, v))
             elif v is None:
                 d = truth.nodes[u]
-                t = RTYPES[d["resource_type"]]
+                t = str(d["meta"])
                 diff.missed_nodes.append((t, u))
             else:
                 _, d = node_subst_cost(truth.nodes[u], model.nodes[v], diff=True)
                 if d:
-                    t = RTYPES[truth.nodes[u]["resource_type"]]
+                    t = str(truth.nodes[u]["meta"])
                     diff.partial_nodes.append((t, u, v, d))
         for a, b in edge_list:
             assert not (a is None and b is None)
             if a is None:
                 d = model.edges[b]
-                t = LTYPES[d["link_type"]]
+                t = str(d["meta"])
                 diff.spurious_edges.append((t, b[0], b[1]))
             elif b is None:
                 d = truth.edges[a]
-                t = LTYPES[d["link_type"]]
+                t = str(d["meta"])
                 diff.missed_edges.append((t, a[0], a[1]))
             else:
                 e1 = truth.edges[a]
                 e2 = model.edges[b]
                 _, d = edge_subst_cost(e1, e2, diff=True)
                 if d:
-                    t = LTYPES[e1["link_type"]]
+                    t = str(e1["meta"])
                     diff.partial_edges.append((t, a[0], a[1], b[0], b[1], d))
     return diff

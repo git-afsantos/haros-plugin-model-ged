@@ -29,11 +29,158 @@ from collections import namedtuple
 
 from networkx import MultiDiGraph
 
-from .common import *
-
 ###############################################################################
 # Helper Classes
 ###############################################################################
+
+class Metadata(object):
+    __slots__ = ("rtype", "size")
+
+    NODE = 1
+    TOPIC = 2
+    SERVICE = 3
+    PARAMETER = 4
+
+    PUBLISH = 11
+    SUBSCRIBE = 12
+    SERVER = 13
+    CLIENT = 14
+    GET = 15
+    SET = 16
+
+    def __init__(self, rtype, size=0):
+        self.rtype = rtype
+        self.size = size
+
+    @classmethod
+    def node(cls, size=0):
+        return cls(cls.NODE, size=size)
+
+    @classmethod
+    def topic(cls, size=0):
+        return cls(cls.TOPIC, size=size)
+
+    @classmethod
+    def service(cls, size=0):
+        return cls(cls.SERVICE, size=size)
+
+    @classmethod
+    def param(cls, size=0):
+        return cls(cls.PARAMETER, size=size)
+
+    @classmethod
+    def pub(cls, size=0):
+        return cls(cls.PUBLISH, size=size)
+
+    @classmethod
+    def sub(cls, size=0):
+        return cls(cls.SUBSCRIBE, size=size)
+
+    @classmethod
+    def server(cls, size=0):
+        return cls(cls.SERVER, size=size)
+
+    @classmethod
+    def client(cls, size=0):
+        return cls(cls.CLIENT, size=size)
+
+    @classmethod
+    def get_param(cls, size=0):
+        return cls(cls.GET, size=size)
+
+    @classmethod
+    def set_param(cls, size=0):
+        return cls(cls.SET, size=size)
+
+    @property
+    def is_node(self):
+        return self.rtype == self.NODE
+
+    @property
+    def is_topic(self):
+        return self.rtype == self.TOPIC
+
+    @property
+    def is_service(self):
+        return self.rtype == self.SERVICE
+
+    @property
+    def is_param(self):
+        return self.rtype == self.PARAMETER
+
+    @property
+    def is_pub(self):
+        return self.rtype == self.PUBLISH
+
+    @property
+    def is_sub(self):
+        return self.rtype == self.SUBSCRIBE
+
+    @property
+    def is_msg_link(self):
+        return self.rtype == self.PUBLISH or self.rtype == self.SUBSCRIBE
+
+    @property
+    def is_server(self):
+        return self.rtype == self.SERVER
+
+    @property
+    def is_client(self):
+        return self.rtype == self.CLIENT
+
+    @property
+    def is_srv_link(self):
+        return self.rtype == self.SERVER or self.rtype == self.CLIENT
+
+    @property
+    def is_get(self):
+        return self.rtype == self.GET
+
+    @property
+    def is_set(self):
+        return self.rtype == self.SET
+
+    @property
+    def is_param_link(self):
+        return self.rtype == self.GET or self.rtype == self.SET
+
+    def same_type(self, other):
+        return self.rtype == other.rtype
+
+    def __eq__(self, other):
+        if not isinstance(other, Metadata):
+            return False
+        return self.rtype == other.rtype
+
+    def __hash__(self):
+        return hash(self.rtype)
+
+    def __str__(self):
+        if self.rtype == self.NODE:
+            return "node"
+        if self.rtype == self.TOPIC:
+            return "topic"
+        if self.rtype == self.SERVICE:
+            return "service"
+        if self.rtype == self.PARAMETER:
+            return "parameter"
+        if self.rtype == self.PUBLISH:
+            return "topic publisher"
+        if self.rtype == self.SUBSCRIBE:
+            return "topic subscriber"
+        if self.rtype == self.SERVER:
+            return "service server"
+        if self.rtype == self.CLIENT:
+            return "service client"
+        if self.rtype == self.GET:
+            return "get parameter"
+        if self.rtype == self.SET:
+            return "set parameter"
+        assert False, "unknown type: {}".format(self.rtype)
+
+    def __repr__(self):
+        return "Metadata({}, size={})".format(repr(self.rtype), repr(self.size))
+
 
 Guard = namedtuple("Guard",
     ("statement", "condition", "package", "file", "line"))
@@ -68,37 +215,37 @@ def config_to_nx(config, ext=False):
         G.add_node(uid, **attrs)
     for node in config.nodes.enabled:
         for link in node.publishers:
-            attrs = topiclink_attrs(link, PUBLISH, ext=ext)
+            attrs = topiclink_attrs(link, Metadata.pub(), ext=ext)
             s = objs[link.node]
             t = objs[link.topic]
             uid = "{} -> {}".format(s, t)
             G.add_edge(s, t, key=uid, **attrs)
         for link in node.subscribers:
-            attrs = topiclink_attrs(link, SUBSCRIBE, ext=ext)
+            attrs = topiclink_attrs(link, Metadata.sub(), ext=ext)
             s = objs[link.topic]
             t = objs[link.node]
             uid = "{} -> {}".format(s, t)
             G.add_edge(s, t, key=uid, **attrs)
         for link in node.servers:
-            attrs = srvlink_attrs(link, SERVICE, ext=ext)
+            attrs = srvlink_attrs(link, Metadata.server(), ext=ext)
             s = objs[link.service]
             t = objs[link.node]
             uid = "{} -> {}".format(s, t)
             G.add_edge(s, t, key=uid, **attrs)
         for link in node.clients:
-            attrs = srvlink_attrs(link, CLIENT, ext=ext)
+            attrs = srvlink_attrs(link, Metadata.client(), ext=ext)
             s = objs[link.node]
             t = objs[link.service]
             uid = "{} -> {}".format(s, t)
             G.add_edge(s, t, key=uid, **attrs)
         for link in node.reads:
-            attrs = paramlink_attrs(link, GET, ext=ext)
+            attrs = paramlink_attrs(link, Metadata.get_param(), ext=ext)
             s = objs[link.parameter]
             t = objs[link.node]
             uid = "{} -> {}".format(s, t)
             G.add_edge(s, t, key=uid, **attrs)
         for link in node.writes:
-            attrs = paramlink_attrs(link, SET, ext=ext)
+            attrs = paramlink_attrs(link, Metadata.set_param(), ext=ext)
             s = objs[link.node]
             t = objs[link.parameter]
             uid = "{} -> {}".format(s, t)
@@ -112,7 +259,7 @@ def config_to_nx(config, ext=False):
 
 def node_attrs(node, ext=False):
     attrs = {
-        "resource_type": NODE,
+        "meta": Metadata.node(5 if ext else 1),
         "rosname": node.rosname.full
     }
     if ext:
@@ -126,7 +273,7 @@ def node_attrs(node, ext=False):
 
 def topic_attrs(topic, ext=False):
     attrs = {
-        "resource_type": TOPIC,
+        "meta": Metadata.topic(3 if ext else 1),
         "rosname": topic.rosname.full
     }
     if ext:
@@ -139,7 +286,7 @@ def topic_attrs(topic, ext=False):
 
 def service_attrs(service, ext=False):
     attrs = {
-        "resource_type": SERVICE,
+        "meta": Metadata.service(3 if ext else 1),
         "rosname": service.rosname.full
     }
     if ext:
@@ -152,7 +299,7 @@ def service_attrs(service, ext=False):
 
 def param_attrs(param, ext=False):
     attrs = {
-        "resource_type": PARAMETER,
+        "meta": Metadata.param(4 if ext else 1),
         "rosname": param.rosname.full
     }
     if ext:
@@ -190,10 +337,8 @@ def location_attrs(loc):
 # Graph Edge Attributes
 ###############################################################################
 
-def topiclink_attrs(link, t, ext=False):
-    attrs = {
-        "link_type": t,
-    }
+def topiclink_attrs(link, meta, ext=False):
+    attrs = {"meta": meta}
     if ext:
         attrs.update({
             "rosname": link.rosname.full,
@@ -204,10 +349,8 @@ def topiclink_attrs(link, t, ext=False):
         })
     return attrs
 
-def srvlink_attrs(link, t, ext=False):
-    attrs = {
-        "link_type": t,
-    }
+def srvlink_attrs(link, meta, ext=False):
+    attrs = {"meta": meta}
     if ext:
         attrs.update({
             "rosname": link.rosname.full,
@@ -217,10 +360,8 @@ def srvlink_attrs(link, t, ext=False):
         })
     return attrs
 
-def paramlink_attrs(link, t, ext=False):
-    attrs = {
-        "link_type": t,
-    }
+def paramlink_attrs(link, meta, ext=False):
+    attrs = {"meta": meta}
     if ext:
         attrs.update({
             "rosname": link.rosname.full,
@@ -251,13 +392,13 @@ def truth_launch_to_nx(launch, G):
     for node in launch.get("nodes", ()):
         attrs = dict(node)
         uid = "[N]" + attrs["rosname"]
-        attrs["resource_type"] = NODE
+        attrs["meta"] = Metadata.node(5)
         attrs["conditions"] = cfg_from_list(attrs["conditions"])
         G.add_node(uid, **attrs)
     for param in launch.get("parameters", ()):
         attrs = dict(param)
         uid = "[P]" + attrs["rosname"]
-        attrs["resource_type"] = PARAMETER
+        attrs["meta"] = Metadata.param(4)
         attrs["conditions"] = cfg_from_list(attrs["conditions"])
         G.add_node(uid, **attrs)
 
@@ -270,7 +411,7 @@ def truth_msg_links_to_nx(links, G):
         attrs = dict(link)
         del attrs["node"]
         del attrs["topic"]
-        attrs["link_type"] = PUBLISH
+        attrs["meta"] = Metadata.pub(5)
         attrs["conditions"] = cfg_from_list(attrs["conditions"])
         G.add_edge(s, t, key=uid, **attrs)
     for link in links.get("subscribers", ()):
@@ -281,7 +422,7 @@ def truth_msg_links_to_nx(links, G):
         attrs = dict(link)
         del attrs["node"]
         del attrs["topic"]
-        attrs["link_type"] = SUBSCRIBE
+        attrs["meta"] = Metadata.sub(5)
         attrs["conditions"] = cfg_from_list(attrs["conditions"])
         G.add_edge(s, t, key=uid, **attrs)
 
@@ -294,7 +435,7 @@ def truth_srv_links_to_nx(links, G):
         attrs = dict(link)
         del attrs["node"]
         del attrs["service"]
-        attrs["link_type"] = CLIENT
+        attrs["meta"] = Metadata.client(4)
         attrs["conditions"] = cfg_from_list(attrs["conditions"])
         G.add_edge(s, t, key=uid, **attrs)
     for link in links.get("servers", ()):
@@ -305,7 +446,7 @@ def truth_srv_links_to_nx(links, G):
         attrs = dict(link)
         del attrs["node"]
         del attrs["service"]
-        attrs["link_type"] = SERVER
+        attrs["meta"] = Metadata.server(4)
         attrs["conditions"] = cfg_from_list(attrs["conditions"])
         G.add_edge(s, t, key=uid, **attrs)
 
@@ -318,7 +459,7 @@ def truth_param_links_to_nx(links, G):
         attrs = dict(link)
         del attrs["node"]
         del attrs["parameter"]
-        attrs["link_type"] = SET
+        attrs["meta"] = Metadata.set_param(4)
         attrs["conditions"] = cfg_from_list(attrs["conditions"])
         G.add_edge(s, t, key=uid, **attrs)
     for link in links.get("gets", ()):
@@ -329,7 +470,7 @@ def truth_param_links_to_nx(links, G):
         attrs = dict(link)
         del attrs["node"]
         del attrs["parameter"]
-        attrs["link_type"] = GET
+        attrs["meta"] = Metadata.get_param(4)
         attrs["conditions"] = cfg_from_list(attrs["conditions"])
         G.add_edge(s, t, key=uid, **attrs)
 
@@ -340,7 +481,7 @@ def topic_from_link(link, G):
     attrs = G.nodes.get(uid)
     if attrs is None:
         attrs = {
-            "resource_type": TOPIC,
+            "meta": Metadata.topic(3),
             "rosname": rosname,
             "conditions": {},
             "traceability": []
@@ -356,7 +497,7 @@ def service_from_link(link, G):
     attrs = G.nodes.get(uid)
     if attrs is None:
         attrs = {
-            "resource_type": SERVICE,
+            "meta": Metadata.service(3),
             "rosname": rosname,
             "conditions": {},
             "traceability": []
@@ -372,7 +513,7 @@ def param_from_link(link, G):
     attrs = G.nodes.get(uid)
     if attrs is None:
         attrs = {
-            "resource_type": PARAMETER,
+            "meta": Metadata.param(4),
             "rosname": rosname,
             "default_value": None,
             "conditions": {},
