@@ -90,8 +90,8 @@ def haros_topics_to_nx(topics, G):
     for topic in topics:
         rosname = topic.rosname.full
         uid = "[T{}]{}".format(len(G), rosname)
-        traceability = [haros_location_to_nx(loc)
-                        for loc in topic.traceability()]
+        traceability = list(set(haros_location_to_nx(loc)
+                                for loc in topic.traceability()))
         G.graph["ids"][topic] = uid
         G.add_node(uid, nxtype=TOPIC, rosname=rosname, msg_type=topic.type,
             conditions=haros_conditions_to_nx(topic.conditions),
@@ -101,8 +101,8 @@ def haros_services_to_nx(services, G):
     for srv in services:
         rosname = srv.rosname.full
         uid = "[S{}]{}".format(len(G), rosname)
-        traceability = [haros_location_to_nx(loc)
-                        for loc in srv.traceability()]
+        traceability = list(set(haros_location_to_nx(loc)
+                                for loc in srv.traceability()))
         G.graph["ids"][srv] = uid
         G.add_node(uid, nxtype=SERVICE, rosname=rosname, srv_type=srv.type,
             conditions=haros_conditions_to_nx(srv.conditions),
@@ -112,8 +112,8 @@ def haros_params_to_nx(parameters, G):
     for param in parameters:
         rosname = param.rosname.full
         uid = "[P{}]{}".format(len(G), rosname)
-        traceability = [haros_location_to_nx(loc)
-                        for loc in param.traceability()]
+        traceability = list(set(haros_location_to_nx(loc)
+                                for loc in param.traceability()))
         G.graph["ids"][param] = uid
         G.add_node(uid, nxtype=PARAMETER, rosname=rosname,
             default_value=param.value,
@@ -194,6 +194,10 @@ def haros_set_params_to_nx(links, G):
             conditions=haros_conditions_to_nx(link.conditions),
             traceability=haros_location_to_nx(link.source_location))
 
+
+###############################################################################
+# Nested Attributes
+###############################################################################
 
 def haros_conditions_to_nx(conditions):
     cfg = {}

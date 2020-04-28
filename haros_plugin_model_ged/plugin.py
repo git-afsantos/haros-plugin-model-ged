@@ -78,7 +78,7 @@ user_data:
 # Imports
 ###############################################################################
 
-from .ged import calc_edit_paths, diff_from_paths
+from .ged_int import calc_edit_paths, diff_from_paths, sizeof_graph
 from .haros2nx import config_to_nx, truth_to_nx
 from .output_format import diff_to_html, write_txt
 
@@ -110,14 +110,16 @@ def issue(s_ged, f_ged, G, diff):
     n_nodes = len(G.nodes)
     n_edges = len(G.edges)
     n = n_nodes + n_edges
-    err_s = s_ged / n
-    err_f = f_ged / n
+    t = sizeof_graph(G)
+    err_s = s_ged / t
+    err_f = f_ged / t
     return (
         "<p>Graph Item Count: {}</p>\n"
         "<p>Graph Node Count: {}</p>\n"
         "<p>Graph Edge Count: {}</p>\n"
+        "<p>Atomic Attribute Count: {}</p>\n"
         "<p>Simple Graph Edit Distance: {} ({} error rate)</p>\n"
         "<p>Full Attr. Graph Edit Distance: {} ({} error rate)</p>\n"
         "{}"
-    ).format(n, n_nodes, n_edges,
+    ).format(n, n_nodes, n_edges, t,
         s_ged, err_s, f_ged, err_f, diff_to_html(diff))
