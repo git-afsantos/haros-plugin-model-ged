@@ -29,227 +29,46 @@ from collections import namedtuple
 
 from networkx import MultiDiGraph
 
+
+###############################################################################
+# Constants
+###############################################################################
+
+NODE = 1
+TOPIC = 2
+SERVICE = 3
+PARAMETER = 4
+
+PUBLISHER = 11
+SUBSCRIBER = 12
+SERVER = 13
+CLIENT = 14
+GET = 15
+SET = 16
+
+
 ###############################################################################
 # Helper Classes
 ###############################################################################
 
-class Metadata(object):
-    __slots__ = ("rtype", "size")
-
-    NODE = 1
-    TOPIC = 2
-    SERVICE = 3
-    PARAMETER = 4
-
-    PUBLISH = 11
-    SUBSCRIBE = 12
-    SERVER = 13
-    CLIENT = 14
-    GET = 15
-    SET = 16
-
-    def __init__(self, rtype, size=0):
-        self.rtype = rtype
-        self.size = size
-
-    @classmethod
-    def node(cls, size=0):
-        return cls(cls.NODE, size=size)
-
-    @classmethod
-    def topic(cls, size=0):
-        return cls(cls.TOPIC, size=size)
-
-    @classmethod
-    def service(cls, size=0):
-        return cls(cls.SERVICE, size=size)
-
-    @classmethod
-    def param(cls, size=0):
-        return cls(cls.PARAMETER, size=size)
-
-    @classmethod
-    def pub(cls, size=0):
-        return cls(cls.PUBLISH, size=size)
-
-    @classmethod
-    def sub(cls, size=0):
-        return cls(cls.SUBSCRIBE, size=size)
-
-    @classmethod
-    def server(cls, size=0):
-        return cls(cls.SERVER, size=size)
-
-    @classmethod
-    def client(cls, size=0):
-        return cls(cls.CLIENT, size=size)
-
-    @classmethod
-    def get_param(cls, size=0):
-        return cls(cls.GET, size=size)
-
-    @classmethod
-    def set_param(cls, size=0):
-        return cls(cls.SET, size=size)
-
-    @property
-    def is_node(self):
-        return self.rtype == self.NODE
-
-    @property
-    def is_topic(self):
-        return self.rtype == self.TOPIC
-
-    @property
-    def is_service(self):
-        return self.rtype == self.SERVICE
-
-    @property
-    def is_param(self):
-        return self.rtype == self.PARAMETER
-
-    @property
-    def is_pub(self):
-        return self.rtype == self.PUBLISH
-
-    @property
-    def is_sub(self):
-        return self.rtype == self.SUBSCRIBE
-
-    @property
-    def is_msg_link(self):
-        return self.rtype == self.PUBLISH or self.rtype == self.SUBSCRIBE
-
-    @property
-    def is_server(self):
-        return self.rtype == self.SERVER
-
-    @property
-    def is_client(self):
-        return self.rtype == self.CLIENT
-
-    @property
-    def is_srv_link(self):
-        return self.rtype == self.SERVER or self.rtype == self.CLIENT
-
-    @property
-    def is_get(self):
-        return self.rtype == self.GET
-
-    @property
-    def is_set(self):
-        return self.rtype == self.SET
-
-    @property
-    def is_param_link(self):
-        return self.rtype == self.GET or self.rtype == self.SET
-
-    def same_type(self, other):
-        return self.rtype == other.rtype
-
-    def __eq__(self, other):
-        if not isinstance(other, Metadata):
-            return False
-        return self.rtype == other.rtype
-
-    def __hash__(self):
-        return hash(self.rtype)
-
-    def __str__(self):
-        if self.rtype == self.NODE:
-            return "node"
-        if self.rtype == self.TOPIC:
-            return "topic"
-        if self.rtype == self.SERVICE:
-            return "service"
-        if self.rtype == self.PARAMETER:
-            return "parameter"
-        if self.rtype == self.PUBLISH:
-            return "topic publisher"
-        if self.rtype == self.SUBSCRIBE:
-            return "topic subscriber"
-        if self.rtype == self.SERVER:
-            return "service server"
-        if self.rtype == self.CLIENT:
-            return "service client"
-        if self.rtype == self.GET:
-            return "get parameter"
-        if self.rtype == self.SET:
-            return "set parameter"
-        assert False, "unknown type: {}".format(self.rtype)
-
-    def __repr__(self):
-        return "Metadata({}, size={})".format(repr(self.rtype), repr(self.size))
-
-
 Guard = namedtuple("Guard",
     ("statement", "condition", "package", "file", "line"))
+
+Location = namedtuple("Location", ("package", "file", "line"))
 
 
 ###############################################################################
 # HAROS to NetworkX Conversion
 ###############################################################################
 
-def config_to_nx(config, ext=False):
+def config_to_nx(config):
     objs = {}
-    G = MultiDiGraph()
-    for node in config.nodes.enabled:
-        attrs = node_attrs(node, ext=ext)
-        uid = "[N{}]{}".format(len(G), attrs["rosname"])
-        objs[node] = uid
-        G.add_node(uid, **attrs)
-    for topic in config.topics.enabled:
-        attrs = topic_attrs(topic, ext=ext)
-        uid = "[T{}]{}".format(len(G), attrs["rosname"])
-        objs[topic] = uid
-        G.add_node(uid, **attrs)
-    for service in config.services.enabled:
-        attrs = service_attrs(service, ext=ext)
-        uid = "[S{}]{}".format(len(G), attrs["rosname"])
-        objs[service] = uid
-        G.add_node(uid, **attrs)
-    for param in config.parameters.enabled:
-        attrs = param_attrs(param, ext=ext)
-        uid = "[P{}]{}".format(len(G), attrs["rosname"])
-        objs[param] = uid
-        G.add_node(uid, **attrs)
-    for node in config.nodes.enabled:
-        for link in node.publishers:
-            attrs = topiclink_attrs(link, Metadata.pub(), ext=ext)
-            s = objs[link.node]
-            t = objs[link.topic]
-            uid = "{} -> {}".format(s, t)
-            G.add_edge(s, t, key=uid, **attrs)
-        for link in node.subscribers:
-            attrs = topiclink_attrs(link, Metadata.sub(), ext=ext)
-            s = objs[link.topic]
-            t = objs[link.node]
-            uid = "{} -> {}".format(s, t)
-            G.add_edge(s, t, key=uid, **attrs)
-        for link in node.servers:
-            attrs = srvlink_attrs(link, Metadata.server(), ext=ext)
-            s = objs[link.service]
-            t = objs[link.node]
-            uid = "{} -> {}".format(s, t)
-            G.add_edge(s, t, key=uid, **attrs)
-        for link in node.clients:
-            attrs = srvlink_attrs(link, Metadata.client(), ext=ext)
-            s = objs[link.node]
-            t = objs[link.service]
-            uid = "{} -> {}".format(s, t)
-            G.add_edge(s, t, key=uid, **attrs)
-        for link in node.reads:
-            attrs = paramlink_attrs(link, Metadata.get_param(), ext=ext)
-            s = objs[link.parameter]
-            t = objs[link.node]
-            uid = "{} -> {}".format(s, t)
-            G.add_edge(s, t, key=uid, **attrs)
-        for link in node.writes:
-            attrs = paramlink_attrs(link, Metadata.set_param(), ext=ext)
-            s = objs[link.node]
-            t = objs[link.parameter]
-            uid = "{} -> {}".format(s, t)
-            G.add_edge(s, t, key=uid, **attrs)
+    G = MultiDiGraph(ids={})
+    haros_nodes_to_nx(config.nodes.enabled, G)
+    haros_topics_to_nx(config.topics.enabled, G)
+    haros_services_to_nx(config.services.enabled, G)
+    haros_params_to_nx(config.parameters.enabled, G)
+    haros_links_to_nx(config.nodes.enabled, G)
     return G
 
 
@@ -257,119 +76,140 @@ def config_to_nx(config, ext=False):
 # Graph Node Attributes
 ###############################################################################
 
-def node_attrs(node, ext=False):
-    attrs = {
-        "meta": Metadata.node(5 if ext else 1),
-        "rosname": node.rosname.full
-    }
-    if ext:
-        attrs.update({
-            "node_type": node.node.node_name,
-            "args": node.argv,
-            "conditions": condition_attrs(node.conditions),
-            "traceability": location_attrs(node.traceability()[0])
-        })
-    return attrs
+def haros_nodes_to_nx(nodes, G):
+    for node in nodes:
+        rosname = node.rosname.full
+        uid = "[N{}]{}".format(len(G), rosname)
+        G.graph["ids"][node] = uid
+        G.add_node(uid, nxtype=NODE, rosname=rosname,
+            node_type=node.node.node_name, args=node.argv,
+            conditions=haros_conditions_to_nx(node.conditions),
+            traceability=haros_location_to_nx(node.traceability()[0]))
 
-def topic_attrs(topic, ext=False):
-    attrs = {
-        "meta": Metadata.topic(3 if ext else 1),
-        "rosname": topic.rosname.full
-    }
-    if ext:
-        attrs.update({
-            "conditions": condition_attrs(topic.conditions),
-            "traceability": [
-                location_attrs(loc) for loc in topic.traceability()]
-        })
-    return attrs
+def haros_topics_to_nx(topics, G):
+    for topic in topics:
+        rosname = topic.rosname.full
+        uid = "[T{}]{}".format(len(G), rosname)
+        traceability = [haros_location_to_nx(loc)
+                        for loc in topic.traceability()]
+        G.graph["ids"][topic] = uid
+        G.add_node(uid, nxtype=TOPIC, rosname=rosname, msg_type=topic.type,
+            conditions=haros_conditions_to_nx(topic.conditions),
+            traceability=traceability)
 
-def service_attrs(service, ext=False):
-    attrs = {
-        "meta": Metadata.service(3 if ext else 1),
-        "rosname": service.rosname.full
-    }
-    if ext:
-        attrs.update({
-            "conditions": condition_attrs(service.conditions),
-            "traceability": [
-                location_attrs(loc) for loc in service.traceability()]
-        })
-    return attrs
+def haros_services_to_nx(services, G):
+    for srv in services:
+        rosname = srv.rosname.full
+        uid = "[S{}]{}".format(len(G), rosname)
+        traceability = [haros_location_to_nx(loc)
+                        for loc in srv.traceability()]
+        G.graph["ids"][srv] = uid
+        G.add_node(uid, nxtype=SERVICE, rosname=rosname, srv_type=srv.type,
+            conditions=haros_conditions_to_nx(srv.conditions),
+            traceability=traceability)
 
-def param_attrs(param, ext=False):
-    attrs = {
-        "meta": Metadata.param(4 if ext else 1),
-        "rosname": param.rosname.full
-    }
-    if ext:
-        attrs.update({
-            "default_value": param.value,
-            "conditions": condition_attrs(param.conditions),
-            "traceability": [
-                location_attrs(loc) for loc in param.traceability()]
-        })
-    return attrs
-
-
-def condition_attrs(conditions):
-    cfg = {}
-    for condition in conditions:
-        loc = location_attrs(condition.location)
-        g = Guard("if", condition.condition,
-            loc["package"], loc["file"], loc["line"])
-        cfg[g] = {}
-    return cfg
-
-def location_attrs(loc):
-    attrs = {"package": None, "file": None, "line": None}
-    if loc is not None:
-        if loc.package is not None:
-            attrs["package"] = loc.package.name
-        if loc.file is not None:
-            attrs["file"] = loc.file.full_name
-        if loc.line is not None:
-            attrs["line"] = loc.line
-    return attrs
+def haros_params_to_nx(parameters, G):
+    for param in parameters:
+        rosname = param.rosname.full
+        uid = "[P{}]{}".format(len(G), rosname)
+        traceability = [haros_location_to_nx(loc)
+                        for loc in param.traceability()]
+        G.graph["ids"][param] = uid
+        G.add_node(uid, nxtype=PARAMETER, rosname=rosname,
+            default_value=param.value,
+            conditions=haros_conditions_to_nx(param.conditions),
+            traceability=traceability)
 
 
 ###############################################################################
 # Graph Edge Attributes
 ###############################################################################
 
-def topiclink_attrs(link, meta, ext=False):
-    attrs = {"meta": meta}
-    if ext:
-        attrs.update({
-            "rosname": link.rosname.full,
-            "conditions": condition_attrs(link.conditions),
-            "traceability": location_attrs(link.source_location),
-            "queue_size": link.queue_size,
-            "msg_type": link.type
-        })
-    return attrs
+def haros_links_to_nx(nodes, G):
+    for node in nodes:
+        haros_publishers_to_nx(node.publishers, G)
+        haros_subscribers_to_nx(node.subscribers, G)
+        haros_servers_to_nx(node.servers, G)
+        haros_clients_to_nx(node.clients, G)
+        haros_get_params_to_nx(node.reads, G)
+        haros_set_params_to_nx(node.writes, G)
 
-def srvlink_attrs(link, meta, ext=False):
-    attrs = {"meta": meta}
-    if ext:
-        attrs.update({
-            "rosname": link.rosname.full,
-            "conditions": condition_attrs(link.conditions),
-            "traceability": location_attrs(link.source_location),
-            "srv_type": link.type
-        })
-    return attrs
+def haros_publishers_to_nx(links, G):
+    for link in links:
+        s = G.graph["ids"][link.node]
+        t = G.graph["ids"][link.topic]
+        uid = "{} -> {}".format(s, t)
+        G.add_edge(s, t, key=uid, nxtype=PUBLISHER, rosname=link.rosname.full,
+            msg_type=link.type, queue_size=link.queue_size,
+            conditions=haros_conditions_to_nx(link.conditions),
+            traceability=haros_location_to_nx(link.source_location))
 
-def paramlink_attrs(link, meta, ext=False):
-    attrs = {"meta": meta}
-    if ext:
-        attrs.update({
-            "rosname": link.rosname.full,
-            "conditions": condition_attrs(link.conditions),
-            "traceability": location_attrs(link.source_location),
-            "param_type": link.type
-        })
-    return attrs
+def haros_subscribers_to_nx(links, G):
+    for link in links:
+        s = G.graph["ids"][link.topic]
+        t = G.graph["ids"][link.node]
+        uid = "{} -> {}".format(s, t)
+        G.add_edge(s, t, key=uid, nxtype=SUBSCRIBER, rosname=link.rosname.full,
+            msg_type=link.type, queue_size=link.queue_size,
+            conditions=haros_conditions_to_nx(link.conditions),
+            traceability=haros_location_to_nx(link.source_location))
+
+def haros_servers_to_nx(links, G):
+    for link in links:
+        s = G.graph["ids"][link.service]
+        t = G.graph["ids"][link.node]
+        uid = "{} -> {}".format(s, t)
+        G.add_edge(s, t, key=uid, nxtype=SERVER, rosname=link.rosname.full,
+            srv_type=link.type,
+            conditions=haros_conditions_to_nx(link.conditions),
+            traceability=haros_location_to_nx(link.source_location))
+
+def haros_clients_to_nx(links, G):
+    for link in links:
+        s = G.graph["ids"][link.node]
+        t = G.graph["ids"][link.service]
+        uid = "{} -> {}".format(s, t)
+        G.add_edge(s, t, key=uid, nxtype=CLIENT, rosname=link.rosname.full,
+            srv_type=link.type,
+            conditions=haros_conditions_to_nx(link.conditions),
+            traceability=haros_location_to_nx(link.source_location))
+
+def haros_get_params_to_nx(links, G):
+    for link in links:
+        s = G.graph["ids"][link.parameter]
+        t = G.graph["ids"][link.node]
+        uid = "{} -> {}".format(s, t)
+        G.add_edge(s, t, key=uid, nxtype=GET, rosname=link.rosname.full,
+            param_type=link.type,
+            conditions=haros_conditions_to_nx(link.conditions),
+            traceability=haros_location_to_nx(link.source_location))
+
+def haros_set_params_to_nx(links, G):
+    for link in links:
+        s = G.graph["ids"][link.node]
+        t = G.graph["ids"][link.parameter]
+        uid = "{} -> {}".format(s, t)
+        G.add_edge(s, t, key=uid, nxtype=SET, rosname=link.rosname.full,
+            param_type=link.type,
+            conditions=haros_conditions_to_nx(link.conditions),
+            traceability=haros_location_to_nx(link.source_location))
+
+
+def haros_conditions_to_nx(conditions):
+    cfg = {}
+    for condition in conditions:
+        loc = haros_location_to_nx(condition.location)
+        g = Guard("if", condition.condition,
+            loc.package, loc.file, loc.line)
+        cfg[g] = {}
+    return cfg
+
+def haros_location_to_nx(loc):
+    if loc is None or loc.package is None:
+        return Location(None, None, None)
+    if loc.file is None:
+        return Location(loc.package.name, None, None)
+    return Location(loc.package.name, loc.file.full_name, loc.line)
 
 
 ###############################################################################
@@ -388,19 +228,67 @@ def truth_to_nx(truth):
         truth_param_links_to_nx(links, G)
     return G
 
+
+###############################################################################
+# Graph Node Attributes
+###############################################################################
+
 def truth_launch_to_nx(launch, G):
     for node in launch.get("nodes", ()):
-        attrs = dict(node)
-        uid = "[N]" + attrs["rosname"]
-        attrs["meta"] = Metadata.node(5)
-        attrs["conditions"] = cfg_from_list(attrs["conditions"])
-        G.add_node(uid, **attrs)
+        rosname = node["rosname"]
+        uid = "[N]" + rosname
+        G.add_node(uid, nxtype=NODE, rosname=rosname,
+            node_type=node["node_type"], args=node["args"],
+            conditions=cfg_from_list(node["conditions"]),
+            traceability=yaml_to_location(node["traceability"]))
     for param in launch.get("parameters", ()):
-        attrs = dict(param)
-        uid = "[P]" + attrs["rosname"]
-        attrs["meta"] = Metadata.param(4)
+        rosname = param["rosname"]
+        uid = "[P]" + rosname
         attrs["conditions"] = cfg_from_list(attrs["conditions"])
-        G.add_node(uid, **attrs)
+        G.add_node(uid, nxtype=PARAMETER, rosname=rosname,
+            default_value=param["default_value"],
+            conditions=cfg_from_list(param["conditions"]),
+            traceability=yaml_to_location(param["traceability"]))
+
+def topic_from_link(link, G):
+    rosname = link["topic"]
+    uid = "[T]" + rosname
+    attrs = G.nodes.get(uid)
+    if attrs is None:
+        G.add_node(uid, nxtype=TOPIC, rosname=rosname,
+            msg_type=link["msg_type"],
+            conditions={}, traceability=[])
+        attrs = G.nodes[uid]
+    attrs["conditions"].update(cfg_from_list(link["conditions"]))
+    attrs["traceability"].append(yaml_to_location(link["traceability"]))
+
+def service_from_link(link, G):
+    rosname = link["service"]
+    uid = "[S]" + rosname
+    attrs = G.nodes.get(uid)
+    if attrs is None:
+        G.add_node(uid, nxtype=SERVICE, rosname=rosname,
+            srv_type=link["srv_type"],
+            conditions={}, traceability=[])
+        attrs = G.nodes[uid]
+    attrs["conditions"].update(cfg_from_list(link["conditions"]))
+    attrs["traceability"].append(yaml_to_location(link["traceability"]))
+
+def param_from_link(link, G):
+    rosname = link["parameter"]
+    uid = "[P]" + rosname
+    attrs = G.nodes.get(uid)
+    if attrs is None:
+        G.add_node(uid, nxtype=PARAMETER, rosname=rosname, default_value=None,
+            conditions={}, traceability=[])
+        attrs = G.nodes[uid]
+    attrs["conditions"].update(cfg_from_list(link["conditions"]))
+    attrs["traceability"].append(yaml_to_location(link["traceability"]))
+
+
+###############################################################################
+# Graph Edge Attributes
+###############################################################################
 
 def truth_msg_links_to_nx(links, G):
     for link in links.get("publishers", ()):
@@ -408,23 +296,19 @@ def truth_msg_links_to_nx(links, G):
         s = "[N]" + link["node"]
         t = "[T]" + link["topic"]
         uid = "{} -> {}".format(s, t)
-        attrs = dict(link)
-        del attrs["node"]
-        del attrs["topic"]
-        attrs["meta"] = Metadata.pub(5)
-        attrs["conditions"] = cfg_from_list(attrs["conditions"])
-        G.add_edge(s, t, key=uid, **attrs)
+        G.add_edge(s, t, key=uid, nxtype=PUBLISHER, rosname=link["rosname"],
+            msg_type=link["msg_type"], queue_size=link["queue_size"],
+            conditions=cfg_from_list(link["conditions"]),
+            traceability=yaml_to_location(link["traceability"]))
     for link in links.get("subscribers", ()):
         topic_from_link(link, G)
         s = "[T]" + link["topic"]
         t = "[N]" + link["node"]
         uid = "{} -> {}".format(s, t)
-        attrs = dict(link)
-        del attrs["node"]
-        del attrs["topic"]
-        attrs["meta"] = Metadata.sub(5)
-        attrs["conditions"] = cfg_from_list(attrs["conditions"])
-        G.add_edge(s, t, key=uid, **attrs)
+        G.add_edge(s, t, key=uid, nxtype=SUBSCRIBER, rosname=link["rosname"],
+            msg_type=link["msg_type"], queue_size=link["queue_size"],
+            conditions=cfg_from_list(link["conditions"]),
+            traceability=yaml_to_location(link["traceability"]))
 
 def truth_srv_links_to_nx(links, G):
     for link in links.get("clients", ()):
@@ -432,23 +316,19 @@ def truth_srv_links_to_nx(links, G):
         s = "[N]" + link["node"]
         t = "[S]" + link["service"]
         uid = "{} -> {}".format(s, t)
-        attrs = dict(link)
-        del attrs["node"]
-        del attrs["service"]
-        attrs["meta"] = Metadata.client(4)
-        attrs["conditions"] = cfg_from_list(attrs["conditions"])
-        G.add_edge(s, t, key=uid, **attrs)
+        G.add_edge(s, t, key=uid, nxtype=CLIENT, rosname=link["rosname"],
+            srv_type=link["srv_type"],
+            conditions=cfg_from_list(link["conditions"]),
+            traceability=yaml_to_location(link["traceability"]))
     for link in links.get("servers", ()):
         service_from_link(link, G)
         s = "[S]" + link["service"]
         t = "[N]" + link["node"]
         uid = "{} -> {}".format(s, t)
-        attrs = dict(link)
-        del attrs["node"]
-        del attrs["service"]
-        attrs["meta"] = Metadata.server(4)
-        attrs["conditions"] = cfg_from_list(attrs["conditions"])
-        G.add_edge(s, t, key=uid, **attrs)
+        G.add_edge(s, t, key=uid, nxtype=SERVER, rosname=link["rosname"],
+            srv_type=link["srv_type"],
+            conditions=cfg_from_list(link["conditions"]),
+            traceability=yaml_to_location(link["traceability"]))
 
 def truth_param_links_to_nx(links, G):
     for link in links.get("sets", ()):
@@ -456,73 +336,19 @@ def truth_param_links_to_nx(links, G):
         s = "[N]" + link["node"]
         t = "[P]" + link["parameter"]
         uid = "{} -> {}".format(s, t)
-        attrs = dict(link)
-        del attrs["node"]
-        del attrs["parameter"]
-        attrs["meta"] = Metadata.set_param(4)
-        attrs["conditions"] = cfg_from_list(attrs["conditions"])
-        G.add_edge(s, t, key=uid, **attrs)
+        G.add_edge(s, t, key=uid, nxtype=SET, rosname=link["rosname"],
+            param_type=link["param_type"],
+            conditions=cfg_from_list(link["conditions"]),
+            traceability=yaml_to_location(link["traceability"]))
     for link in links.get("gets", ()):
         param_from_link(link, G)
         s = "[P]" + link["parameter"]
         t = "[N]" + link["node"]
         uid = "{} -> {}".format(s, t)
-        attrs = dict(link)
-        del attrs["node"]
-        del attrs["parameter"]
-        attrs["meta"] = Metadata.get_param(4)
-        attrs["conditions"] = cfg_from_list(attrs["conditions"])
-        G.add_edge(s, t, key=uid, **attrs)
-
-
-def topic_from_link(link, G):
-    rosname = link["topic"]
-    uid = "[T]" + rosname
-    attrs = G.nodes.get(uid)
-    if attrs is None:
-        attrs = {
-            "meta": Metadata.topic(3),
-            "rosname": rosname,
-            "conditions": {},
-            "traceability": []
-        }
-        G.add_node(uid, **attrs)
-        attrs = G.nodes[uid]
-    attrs["conditions"].update(cfg_from_list(link["conditions"]))
-    attrs["traceability"].append(link["traceability"])
-
-def service_from_link(link, G):
-    rosname = link["service"]
-    uid = "[S]" + rosname
-    attrs = G.nodes.get(uid)
-    if attrs is None:
-        attrs = {
-            "meta": Metadata.service(3),
-            "rosname": rosname,
-            "conditions": {},
-            "traceability": []
-        }
-        G.add_node(uid, **attrs)
-        attrs = G.nodes[uid]
-    attrs["conditions"].update(cfg_from_list(link["conditions"]))
-    attrs["traceability"].append(link["traceability"])
-
-def param_from_link(link, G):
-    rosname = link["parameter"]
-    uid = "[P]" + rosname
-    attrs = G.nodes.get(uid)
-    if attrs is None:
-        attrs = {
-            "meta": Metadata.param(4),
-            "rosname": rosname,
-            "default_value": None,
-            "conditions": {},
-            "traceability": []
-        }
-        G.add_node(uid, **attrs)
-        attrs = G.nodes[uid]
-    attrs["conditions"].update(cfg_from_list(link["conditions"]))
-    attrs["traceability"].append(link["traceability"])
+        G.add_edge(s, t, key=uid, nxtype=GET, rosname=link["rosname"],
+            param_type=link["param_type"],
+            conditions=cfg_from_list(link["conditions"]),
+            traceability=yaml_to_location(link["traceability"]))
 
 
 def cfg_from_list(paths):
@@ -538,3 +364,7 @@ def cfg_from_list(paths):
                 r[g] = s
             r = s
     return cfg
+
+def yaml_to_location(traceability):
+    return Location(traceability["package"], traceability["file"],
+        traceability["line"])

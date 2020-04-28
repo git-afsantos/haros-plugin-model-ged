@@ -94,23 +94,30 @@ def configuration_analysis(iface, config):
     if truth is None:
         return
     truth = truth_to_nx(truth)
-    n = len(truth.nodes) + len(truth.edges)
     model = config_to_nx(config)
     paths, s_ged = calc_edit_paths(truth, model)
-    model = config_to_nx(config, ext=True)
-    paths, f_ged = calc_edit_paths(truth, model)
+    model = config_to_nx(config)
+    paths, f_ged = calc_edit_paths(truth, model, ext=True)
     iface.report_metric("simpleGED", s_ged)
     iface.report_metric("fullGED", f_ged)
     diff = diff_from_paths(paths, truth, model)
-    iface.report_runtime_violation("reportGED", issue(s_ged, f_ged, n, diff))
+    iface.report_runtime_violation("reportGED", issue(s_ged, f_ged, truth, diff))
     write_txt("ged-output.txt", truth, model, paths, diff)
     iface.export_file("ged-output.txt")
 
 
-def issue(s_ged, f_ged, n, diff):
+def issue(s_ged, f_ged, G, diff):
+    n_nodes = len(G.nodes)
+    n_edges = len(G.edges)
+    n = n_nodes + n_edges
+    err_s = s_ged / n
+    err_f = f_ged / n
     return (
         "<p>Graph Item Count: {}</p>\n"
+        "<p>Graph Node Count: {}</p>\n"
+        "<p>Graph Edge Count: {}</p>\n"
         "<p>Simple Graph Edit Distance: {} ({} error rate)</p>\n"
         "<p>Full Attr. Graph Edit Distance: {} ({} error rate)</p>\n"
         "{}"
-    ).format(n, s_ged, s_ged / n, f_ged, f_ged / n, diff_to_html(diff))
+    ).format(n, n_nodes, n_edges,
+        s_ged, err_s, f_ged, err_f, diff_to_html(diff))

@@ -30,25 +30,60 @@ from collections import namedtuple
 
 from networkx import graph_edit_distance, optimal_edit_paths
 
+from .haros2nx import (
+    NODE, TOPIC, SERVICE, PARAMETER,
+    PUBLISHER, SUBSCRIBER, SERVER, CLIENT, GET, SET
+)
+
+###############################################################################
+# Constants
+###############################################################################
+
+TYPES = {
+    NODE: "node",
+    TOPIC: "topic",
+    SERVICE: "service",
+    PARAMETER: "parameter",
+    PUBLISHER: "topic publisher",
+    SUBSCRIBER: "topic subscriber",
+    SERVER: "service server",
+    CLIENT: "service client",
+    GET: "get parameter",
+    SET: "set parameter"
+}
+
+
 ###############################################################################
 # Graph Edit Distance Calculation
 ###############################################################################
 
-def calc_ged(G1, G2):
+def calc_ged(G1, G2, ext=False):
+    if ext:
+        nsc = node_subst_cost_2
+        esc = edge_subst_cost_2
+    else:
+        nsc = node_subst_cost_0
+        esc = edge_subst_cost_0
     return graph_edit_distance(G1, G2,
-        node_subst_cost=node_subst_cost,
+        node_subst_cost=nsc,
         node_del_cost=None, # defaults to 1
         node_ins_cost=None, # defaults to 1
-        edge_subst_cost=edge_subst_cost,
+        edge_subst_cost=esc,
         edge_del_cost=None, # defaults to 1
         edge_ins_cost=None) # defaults to 1
 
-def calc_edit_paths(G1, G2):
+def calc_edit_paths(G1, G2, ext=False):
+    if ext:
+        nsc = node_subst_cost_2
+        esc = edge_subst_cost_2
+    else:
+        nsc = node_subst_cost_0
+        esc = edge_subst_cost_0
     return optimal_edit_paths(G1, G2,
-        node_subst_cost=node_subst_cost,
+        node_subst_cost=nsc,
         node_del_cost=None, # defaults to 1
         node_ins_cost=None, # defaults to 1
-        edge_subst_cost=edge_subst_cost,
+        edge_subst_cost=esc,
         edge_del_cost=None, # defaults to 1
         edge_ins_cost=None) # defaults to 1
 
@@ -61,31 +96,40 @@ def calc_edit_paths(G1, G2):
 # node_del_cost(G1.nodes[n1])
 # node_ins_cost(G2.nodes[n2])
 
-def node_subst_cost(u, v, diff=False):
+def node_subst_cost_0(u, v):
+    if u["nxtype"] != v["nxtype"]:
+        return 2.0
+    cost = 0.0
+    udata = u["rosname"]
+    vdata = v["rosname"]
+    if "?" in vdata:
+        cost = 0.5
+    elif udata != vdata:
+        cost = 1.0
+    return cost
+
+def node_subst_cost_2(u, v, diff=False):
     # u: graph node from ground truth
     # v: graph node from extracted model
     # should be the dict attributes for each node
     # final result is a cost in [0.0, 1.0]
     #   where 0.0 is perfect and 1.0 is completely wrong
-    meta = u["meta"]
-    if not meta.same_type(v["meta"]):
+    nxtype = u["nxtype"]
+    if nxtype != v["nxtype"]:
         return 2.0
     d = []
-    n = len(v)
-    assert n >= 2, str(v)
-    total = float(n - 1) # ignore metadata
+    total = float(len(v) - 1) # ignore metadata
     score = total # start with everything right and apply penalties
     score -= cmp_resource(u, v, d)
-    if n > 2:
-        if meta.is_node:
-            score -= cmp_node_ext(u, v, d)
-        elif meta.is_topic:
-            score -= cmp_topic_ext(u, v, d)
-        elif meta.is_service:
-            score -= cmp_service_ext(u, v, d)
-        else:
-            assert meta.is_param
-            score -= cmp_param_ext(u, v, d)
+    if nxtype == NODE:
+        score -= cmp_node_ext(u, v, d)
+    elif nxtype == TOPIC:
+        score -= cmp_topic_ext(u, v, d)
+    elif nxtype == SERVICE:
+        score -= cmp_service_ext(u, v, d)
+    else:
+        assert nxtype == PARAMETER
+        score -= cmp_param_ext(u, v, d)
     score = (total - score) / total # normalize
     assert score >= 0.0 and score <= 1.0
     if diff:
@@ -156,28 +200,30 @@ def cmp_param_ext(u, v, d):
 # edge_del_cost(G1[u1][v1])
 # edge_ins_cost(G2[u2][v2])
 
-def edge_subst_cost(a, b, diff=False):
+def edge_subst_cost_0(a, b):
+    if a["nxtype"] != b["nxtype"]:
+        return 2.0
+    return 0.0
+
+def edge_subst_cost_2(a, b, diff=False):
     # receives the edge attribute dictionaries as inputs
     # a: graph edge from ground truth
     # b: graph edge from extracted model
     # final result is a cost in [0.0, 1.0]
     #   where 0.0 is perfect and 1.0 is completely wrong
-    meta = a["meta"]
-    if not meta.same_type(b["meta"]):
+    nxtype = a["nxtype"]
+    if nxtype != b["nxtype"]:
         return 2.0
     d = []
-    n = len(b)
-    if n == 1:
-        return 0.0
-    total = float(n - 1) # ignore metadata
+    total = float(len(b) - 1) # ignore metadata
     score = total # start with everything right and apply penalties
     score -= cmp_link(a, b, d)
-    if meta.is_msg_link:
+    if nxtype == PUBLISHER or nxtype == SUBSCRIBER:
         score -= cmp_pubsub_ext(a, b, d)
-    elif meta.is_srv_link:
+    elif nxtype == SERVER or nxtype == CLIENT:
         score -= cmp_srvcli_ext(a, b, d)
     else:
-        assert meta.is_param_link
+        assert nxtype == GET or nxtype == SET
         score -= cmp_getset_ext(a, b, d)
     score = (total - score) / total # normalize
     assert score >= 0.0 and score <= 1.0
@@ -348,9 +394,9 @@ def cmp_traceability_list(t1, t2, d):
 def loc_list_to_dict(locs):
     pd = {}
     for loc in locs:
-        p = loc["package"]
-        f = loc["file"]
-        l = loc["line"]
+        p = loc.package
+        f = loc.file
+        l = loc.line
         if p is None:
             continue
         if p not in pd:
@@ -380,19 +426,17 @@ def f1(expected, predicted, spurious):
 def cmp_traceability(t1, t2, d):
     # returns the penalty for a source location
     assert t1 is not None
-    _t = (t1["package"], t1["file"], t1["line"])
     if t2 is None:
-        d.append(("traceability", _t, t2))
+        d.append(("traceability", t1, t2))
         return 1.0
-    _f = (t2["package"], t2["file"], t2["line"])
-    if _t[0] != _f[0]:
-        d.append(("traceability", _t, _f))
+    if t1.package != t2.package:
+        d.append(("traceability", t1, t2))
         return 1.0
-    if _t[1] != _f[1]:
-        d.append(("traceability", _t, _f))
+    if t1.file != t2.file:
+        d.append(("traceability", t1, t2))
         return 0.5
-    if _t[2] != _f[2]:
-        d.append(("traceability", _t, _f))
+    if t1.line != t2.line:
+        d.append(("traceability", t1, t2))
         return 1.0 / 6.0
     return 0.0
 
@@ -410,42 +454,40 @@ Diff = namedtuple("Diff", (
     "spurious_edges"
 ))
 
-def _new_diff():
-    return Diff([], [], [], [], [], [])
-
 def diff_from_paths(paths, truth, model):
-    diff = _new_diff()
+    diff = Diff([], [], [], [], [], [])
     for node_list, edge_list in paths:
         for u, v in node_list:
             assert not (u is None and v is None)
             if u is None:
                 d = model.nodes[v]
-                t = str(d["meta"])
+                t = TYPES[d["nxtype"]]
                 diff.spurious_nodes.append((t, v))
             elif v is None:
                 d = truth.nodes[u]
-                t = str(d["meta"])
+                t = TYPES[d["nxtype"]]
                 diff.missed_nodes.append((t, u))
             else:
-                _, d = node_subst_cost(truth.nodes[u], model.nodes[v], diff=True)
+                _, d = node_subst_cost_2(
+                    truth.nodes[u], model.nodes[v], diff=True)
                 if d:
-                    t = str(truth.nodes[u]["meta"])
+                    t = TYPES[truth.nodes[u]["nxtype"]]
                     diff.partial_nodes.append((t, u, v, d))
         for a, b in edge_list:
             assert not (a is None and b is None)
             if a is None:
                 d = model.edges[b]
-                t = str(d["meta"])
+                t = TYPES[d["nxtype"]]
                 diff.spurious_edges.append((t, b[0], b[1]))
             elif b is None:
                 d = truth.edges[a]
-                t = str(d["meta"])
+                t = TYPES[d["nxtype"]]
                 diff.missed_edges.append((t, a[0], a[1]))
             else:
                 e1 = truth.edges[a]
                 e2 = model.edges[b]
-                _, d = edge_subst_cost(e1, e2, diff=True)
+                _, d = edge_subst_cost_2(e1, e2, diff=True)
                 if d:
-                    t = str(e1["meta"])
+                    t = TYPES[e1["nxtype"]]
                     diff.partial_edges.append((t, a[0], a[1], b[0], b[1], d))
     return diff
