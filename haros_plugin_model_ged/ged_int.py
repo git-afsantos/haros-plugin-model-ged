@@ -40,6 +40,11 @@ from .haros2nx import (
 # Constants
 ###############################################################################
 
+# costs of partially correct locations (nothing, just pkg, pkg and file)
+COST_LOC_NONE = 1#3
+COST_LOC_PKG = 1#2
+COST_LOC_FILE = 1
+
 TYPES = {
     NODE: "node",
     TOPIC: "topic",
@@ -303,58 +308,58 @@ def cmp_traceability_list(tl1, tl2, d):
     # bisect(s, 3) == 2
     # bisect(s, 10) == 5
     missed = sorted(tl1)
-    n = 3 * len(tl1)
+    n = traceability_list_size(tl1)
     p = s = 0
     bucket1, bucket2, bucket3, bucket4 = location_buckets(tl2)
     for loc in bucket4:
         i = bisect(missed, loc)
         if i > 0 and missed[i-1] == loc:
-            p += 3
+            p += COST_LOC_NONE
             del missed[i-1]
         else:
-            s += 3
+            s += COST_LOC_NONE
             d.append(("traceability", None, loc))
     for loc in bucket3:
         i = bisect(missed, loc)
         if i >= len(missed): # no match candidate
-            s += 2
+            s += COST_LOC_NONE
             d.append(("traceability", None, loc))
         else: # there is a match candidate
             m = missed[i]
             if (loc.package != m.package or loc.file != m.file
                     or loc.line != m.line):
-                s += 2
+                s += COST_LOC_NONE
                 d.append(("traceability", None, loc))
             else:
-                p += 2
+                p += COST_LOC_NONE
                 d.append(("traceability", m, loc))
                 del missed[i]
     for loc in bucket2:
         i = bisect(missed, loc)
         if i >= len(missed): # no match candidate
-            s += 2
+            s += COST_LOC_PKG
             d.append(("traceability", None, loc))
         else: # there is a match candidate
             m = missed[i]
             if loc.package != m.package or loc.file != m.file:
-                s += 2
+                s += COST_LOC_PKG
                 d.append(("traceability", None, loc))
             else:
-                p += 2
+                p += COST_LOC_PKG
                 d.append(("traceability", m, loc))
                 del missed[i]
     for loc in bucket1:
         i = bisect(missed, loc)
         if i >= len(missed): # no match candidate
-            s += 1
+            s += COST_LOC_FILE
             d.append(("traceability", None, loc))
         else: # there is a match candidate
             m = missed[i]
             if loc.package != m.package:
-                s += 1
+                s += COST_LOC_FILE
                 d.append(("traceability", None, loc))
             else:
-                p += 1
+                p += COST_LOC_FILE
                 d.append(("traceability", m, loc))
                 del missed[i]
     for loc in missed:
@@ -400,11 +405,11 @@ def cmp_traceability(t1, t2, d):
         return 0
     d.append(("traceability", t1, t2))
     if t1.package != t2.package:
-        return 3
+        return COST_LOC_NONE
     if t1.file != t2.file:
-        return 2
+        return COST_LOC_PKG
     assert t1.line != t2.line or t1.column != t2.column
-    return 1
+    return COST_LOC_FILE
 
 
 ###############################################################################
@@ -588,7 +593,7 @@ def conditions_size(cfg):
     return n
 
 def traceability_size():
-    return 3
+    return COST_LOC_NONE
 
 def traceability_list_size(locs):
     return traceability_size() * len(locs)
