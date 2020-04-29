@@ -52,9 +52,9 @@ SET = 16
 ###############################################################################
 
 Guard = namedtuple("Guard",
-    ("statement", "condition", "package", "file", "line"))
+    ("statement", "condition", "package", "file", "line", "column"))
 
-Location = namedtuple("Location", ("package", "file", "line"))
+Location = namedtuple("Location", ("package", "file", "line", "column"))
 
 
 ###############################################################################
@@ -204,16 +204,16 @@ def haros_conditions_to_nx(conditions):
     for condition in conditions:
         loc = haros_location_to_nx(condition.location)
         g = Guard("if", condition.condition,
-            loc.package, loc.file, loc.line)
+            loc.package, loc.file, loc.line, loc.column)
         cfg[g] = {}
     return cfg
 
 def haros_location_to_nx(loc):
     if loc is None or loc.package is None:
-        return Location(None, None, None)
+        return Location(None, None, None, None)
     if loc.file is None:
-        return Location(loc.package.name, None, None)
-    return Location(loc.package.name, loc.file.full_name, loc.line)
+        return Location(loc.package.name, None, None, None)
+    return Location(loc.package.name, loc.file.full_name, loc.line, loc.column)
 
 
 ###############################################################################
@@ -361,7 +361,7 @@ def cfg_from_list(paths):
         r = cfg
         for c in path:
             g = Guard(c["statement"], c["condition"],
-                      c["package"], c["file"], c["line"])
+                      c["package"], c["file"], c["line"], c["column"])
             s = r.get(g)
             if s is None:
                 s = {}
@@ -371,4 +371,4 @@ def cfg_from_list(paths):
 
 def yaml_to_location(traceability):
     return Location(traceability["package"], traceability["file"],
-        traceability["line"])
+        traceability["line"], traceability["column"])

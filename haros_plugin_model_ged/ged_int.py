@@ -305,8 +305,8 @@ def cmp_traceability_list(tl1, tl2, d):
     missed = sorted(tl1)
     n = 3 * len(tl1)
     p = s = 0
-    bucket1, bucket2, bucket3 = location_buckets(tl2)
-    for loc in bucket3:
+    bucket1, bucket2, bucket3, bucket4 = location_buckets(tl2)
+    for loc in bucket4:
         i = bisect(missed, loc)
         if i > 0 and missed[i-1] == loc:
             p += 3
@@ -314,6 +314,21 @@ def cmp_traceability_list(tl1, tl2, d):
         else:
             s += 3
             d.append(("traceability", None, loc))
+    for loc in bucket3:
+        i = bisect(missed, loc)
+        if i >= len(missed): # no match candidate
+            s += 2
+            d.append(("traceability", None, loc))
+        else: # there is a match candidate
+            m = missed[i]
+            if (loc.package != m.package or loc.file != m.file
+                    or loc.line != m.line):
+                s += 2
+                d.append(("traceability", None, loc))
+            else:
+                p += 2
+                d.append(("traceability", m, loc))
+                del missed[i]
     for loc in bucket2:
         i = bisect(missed, loc)
         if i >= len(missed): # no match candidate
@@ -351,7 +366,8 @@ def cmp_traceability_list(tl1, tl2, d):
 def location_buckets(locs):
     bucket1 = [] # one component
     bucket2 = [] # two components
-    bucket3 = [] # all components
+    bucket3 = [] # three components
+    bucket4 = [] # all components
     for loc in locs:
         if loc.package is None:
             continue
@@ -359,9 +375,11 @@ def location_buckets(locs):
             bucket1.append(loc)
         elif loc.line is None:
             bucket2.append(loc)
-        else:
+        elif loc.column is None:
             bucket3.append(loc)
-    return bucket1, bucket2, bucket3
+        else:
+            bucket4.append(loc)
+    return bucket1, bucket2, bucket3, bucket4
 
 
 def f1(expected, predicted, spurious):
@@ -385,7 +403,7 @@ def cmp_traceability(t1, t2, d):
         return 3
     if t1.file != t2.file:
         return 2
-    assert t1.line != t2.line
+    assert t1.line != t2.line or t1.column != t2.column
     return 1
 
 
