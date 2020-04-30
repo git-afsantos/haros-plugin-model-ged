@@ -78,6 +78,15 @@ user_data:
 """
 
 
+# Analysis Level 0:
+#   - Graph node names (rosname)
+#   - Graph edges without attributes
+# Analysis Level 1:
+#   - names and types
+# Analysis Level 2:
+#   - All attributes
+
+
 ###############################################################################
 # Imports
 ###############################################################################
@@ -99,31 +108,35 @@ def configuration_analysis(iface, config):
         return
     truth = truth_to_nx(truth)
     model = config_to_nx(config)
-    paths, s_ged = calc_edit_paths(truth, model)
-    model = config_to_nx(config)
-    paths, f_ged = calc_edit_paths(truth, model, ext=True)
+    paths, s_ged = calc_edit_paths(truth, model, lvl=0)
+    paths, m_ged = calc_edit_paths(truth, model, lvl=1)
+    paths, f_ged = calc_edit_paths(truth, model, lvl=2)
     iface.report_metric("simpleGED", s_ged)
+    iface.report_metric("midGED", m_ged)
     iface.report_metric("fullGED", f_ged)
     diff = diff_from_paths(paths, truth, model)
-    iface.report_runtime_violation("reportGED", issue(s_ged, f_ged, truth, diff))
+    details = issue(s_ged, m_ged, f_ged, truth, diff)
+    iface.report_runtime_violation("reportGED", details)
     write_txt("ged-output.txt", truth, model, paths, diff)
     iface.export_file("ged-output.txt")
 
 
-def issue(s_ged, f_ged, G, diff):
+def issue(s_ged, m_ged, f_ged, G, diff):
     n_nodes = len(G.nodes)
     n_edges = len(G.edges)
     n = n_nodes + n_edges
     t = sizeof_graph(G)
     err_s = s_ged / t
+    err_m = m_ged / t
     err_f = f_ged / t
     return (
         "<p>Graph Item Count: {}</p>\n"
         "<p>Graph Node Count: {}</p>\n"
         "<p>Graph Edge Count: {}</p>\n"
         "<p>Atomic Attribute Count: {}</p>\n"
-        "<p>Simple Graph Edit Distance: {} ({} error rate)</p>\n"
-        "<p>Full Attr. Graph Edit Distance: {} ({} error rate)</p>\n"
+        "<p>Minimal Graph Edit Distance: {} ({} error rate)</p>\n"
+        "<p>Basic Graph Edit Distance: {} ({} error rate)</p>\n"
+        "<p>Extended Graph Edit Distance: {} ({} error rate)</p>\n"
         "{}"
     ).format(n, n_nodes, n_edges, t,
-        s_ged, err_s, f_ged, err_f, diff_to_html(diff))
+        s_ged, err_s, m_ged, err_m, f_ged, err_f, diff_to_html(diff))

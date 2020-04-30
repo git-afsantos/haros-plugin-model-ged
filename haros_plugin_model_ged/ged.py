@@ -63,8 +63,10 @@ TYPES = {
 # Graph Edit Distance Calculation
 ###############################################################################
 
-def calc_ged(G1, G2, ext=False):
-    if ext:
+def calc_ged(G1, G2, lvl=2):
+    if lvl < 0 or lvl > 2:
+        raise ValueError(lvl)
+    if lvl == 2:
         return graph_edit_distance(G1, G2,
             node_subst_cost=node_subst_cost_2,
             node_del_cost=sizeof_node,
@@ -72,6 +74,14 @@ def calc_ged(G1, G2, ext=False):
             edge_subst_cost=edge_subst_cost_2,
             edge_del_cost=sizeof_edge,
             edge_ins_cost=sizeof_edge)
+    elif lvl == 1:
+        return optimal_edit_paths(G1, G2,
+            node_subst_cost=node_subst_cost_1,
+            node_del_cost=min_sizeof_node,
+            node_ins_cost=min_sizeof_node,
+            edge_subst_cost=edge_subst_cost_1,
+            edge_del_cost=min_sizeof_edge,
+            edge_ins_cost=min_sizeof_edge)
     else:
         return graph_edit_distance(G1, G2,
             node_subst_cost=node_subst_cost_0,
@@ -81,8 +91,10 @@ def calc_ged(G1, G2, ext=False):
             edge_del_cost=None, # defaults to 1
             edge_ins_cost=None) # defaults to 1
 
-def calc_edit_paths(G1, G2, ext=False):
-    if ext:
+def calc_edit_paths(G1, G2, lvl=2):
+    if lvl < 0 or lvl > 2:
+        raise ValueError(lvl)
+    if lvl == 2:
         return optimal_edit_paths(G1, G2,
             node_subst_cost=node_subst_cost_2,
             node_del_cost=sizeof_node,
@@ -90,6 +102,14 @@ def calc_edit_paths(G1, G2, ext=False):
             edge_subst_cost=edge_subst_cost_2,
             edge_del_cost=sizeof_edge,
             edge_ins_cost=sizeof_edge)
+    elif lvl == 1:
+        return optimal_edit_paths(G1, G2,
+            node_subst_cost=node_subst_cost_1,
+            node_del_cost=min_sizeof_node,
+            node_ins_cost=min_sizeof_node,
+            edge_subst_cost=edge_subst_cost_1,
+            edge_del_cost=min_sizeof_edge,
+            edge_ins_cost=min_sizeof_edge)
     else:
         return optimal_edit_paths(G1, G2,
             node_subst_cost=node_subst_cost_0,
@@ -114,12 +134,22 @@ def impossible_node_subst(u, v):
 def node_subst_cost_0(u, v):
     if u["nxtype"] != v["nxtype"]:
         return impossible_node_subst(u, v)
-    udata = u["rosname"]
-    vdata = v["rosname"]
-    if udata == vdata:
-        return 0
-    #if "?" in vdata and udata.count("/") == vdata.count("/"):
-    return 1
+    return cmp_atomic_attr(u, v, "rosname")
+
+def node_subst_cost_1(u, v):
+    nxtype = u["nxtype"]
+    if nxtype != v["nxtype"]:
+        return impossible_node_subst(u, v)
+    cost = cmp_atomic_attr(u, v, "rosname")
+    if nxtype == NODE:
+        cost += cmp_atomic_attr(u, v, "node_type")
+    elif nxtype == TOPIC:
+        cost += cmp_atomic_attr(u, v, "msg_type")
+    elif nxtype == SERVICE:
+        cost += cmp_atomic_attr(u, v, "srv_type")
+    elif nxtype == PARAMETER:
+        pass
+    return cost
 
 def node_subst_cost_2(u, v, diff=False):
     # u: graph node from ground truth
@@ -143,48 +173,40 @@ def node_subst_cost_2(u, v, diff=False):
     return (cost, d) if diff else cost
 
 
-def cmp_resource(u, v, d):
-    udata = u["rosname"]
-    vdata = v["rosname"]
+def cmp_atomic_attr(u, v, key, d=None):
+    udata = u[key]
+    vdata = v[key]
     if udata == vdata:
         return 0
-    d.append(("rosname", udata, vdata))
-    #if "?" in vdata and udata.count("/") == vdata.count("/"):
+    if d is not None:
+        d.append((key, udata, vdata))
     return 1
 
+def cmp_resource(u, v, d):
+    return cmp_atomic_attr(u, v, "rosname", d=d)
+    #if "?" in vdata and udata.count("/") == vdata.count("/"):
+
 def cmp_node_ext(u, v, d):
-    cost = 0
-    udata = u["node_type"]
-    vdata = v["node_type"]
-    if udata != vdata:
-        cost += 1
-        d.append(("node_type", udata, vdata))
-    udata = u["args"]
-    vdata = v["args"]
-    if udata != vdata:
-        cost += 1
-        d.append(("args", udata, vdata))
+    cost = cmp_atomic_attr(u, v, "node_type", d=d)
+    cost += cmp_atomic_attr(u, v, "args", d=d)
     cost += cmp_conditions(u["conditions"], v["conditions"], d)
     cost += cmp_traceability(u["traceability"], v["traceability"], d)
     return cost
 
 def cmp_topic_ext(u, v, d):
-    cost = cmp_conditions(u["conditions"], v["conditions"], d)
+    cost = cmp_atomic_attr(u, v, "msg_type", d=d)
+    cost += cmp_conditions(u["conditions"], v["conditions"], d)
     cost += cmp_traceability_list(u["traceability"], v["traceability"], d)
     return cost
 
 def cmp_service_ext(u, v, d):
-    cost = cmp_conditions(u["conditions"], v["conditions"], d)
+    cost = cmp_atomic_attr(u, v, "srv_type", d=d)
+    cost += cmp_conditions(u["conditions"], v["conditions"], d)
     cost += cmp_traceability_list(u["traceability"], v["traceability"], d)
     return cost
 
 def cmp_param_ext(u, v, d):
-    cost = 0
-    udata = u["default_value"]
-    vdata = v["default_value"]
-    if udata != vdata:
-        cost += 1
-        d.append(("default_value", udata, vdata))
+    cost = cmp_atomic_attr(u, v, "default_value", d=d)
     cost += cmp_conditions(u["conditions"], v["conditions"], d)
     cost += cmp_traceability_list(u["traceability"], v["traceability"], d)
     return cost
@@ -205,6 +227,19 @@ def edge_subst_cost_0(a, b):
     if a["nxtype"] != b["nxtype"]:
         return impossible_edge_subst(a, b)
     return 0
+
+def edge_subst_cost_1(a, b):
+    nxtype = a["nxtype"]
+    if nxtype != b["nxtype"]:
+        return impossible_edge_subst(a, b)
+    cost = 0
+    if nxtype == PUBLISHER or nxtype == SUBSCRIBER:
+        cost += cmp_atomic_attr(a, b, "msg_type")
+    elif nxtype == SERVER or nxtype == CLIENT:
+        cost += cmp_atomic_attr(a, b, "srv_type")
+    elif nxtype == GET or nxtype == SET:
+        cost += cmp_atomic_attr(a, b, "param_type")
+    return cost
 
 def edge_subst_cost_2(a, b, diff=False):
     # receives the edge attribute dictionaries as inputs
@@ -237,35 +272,16 @@ def cmp_link(a, b, d):
     return cost
 
 def cmp_pubsub_ext(a, b, d):
-    cost = 0
-    adata = a["queue_size"]
-    bdata = b["queue_size"]
-    if adata != bdata:
-        cost += 1
-        d.append(("queue_size", adata, bdata))
-    adata = a["msg_type"]
-    bdata = b["msg_type"]
-    if adata != bdata:
-        cost += 1
-        d.append(("msg_type", adata, bdata))
+    cost = cmp_atomic_attr(a, b, "queue_size", d=d)
+    cost += cmp_atomic_attr(a, b, "msg_type", d=d)
     return cost
 
 def cmp_srvcli_ext(a, b, d):
-    cost = 0
-    adata = a["srv_type"]
-    bdata = b["srv_type"]
-    if adata != bdata:
-        cost += 1
-        d.append(("srv_type", adata, bdata))
+    cost = cmp_atomic_attr(a, b, "srv_type", d=d)
     return cost
 
 def cmp_getset_ext(a, b, d):
-    cost = 0
-    adata = a["param_type"]
-    bdata = b["param_type"]
-    if adata != bdata:
-        cost += 1
-        d.append(("param_type", adata, bdata))
+    cost = cmp_atomic_attr(a, b, "param_type", d=d)
     return cost
 
 
@@ -477,110 +493,132 @@ def sizeof_graph(G):
     return n
 
 
-def sizeof_node(u):
+def min_sizeof_node(u):
+    return sizeof_node(u, minimal=True)
+
+def sizeof_node(u, minimal=False):
     nxtype = u["nxtype"]
     if nxtype == NODE:
-        return node_size(u)
+        return node_size(u, minimal=minimal)
     elif nxtype == TOPIC:
-        return topic_size(u)
+        return topic_size(u, minimal=minimal)
     elif nxtype == SERVICE:
-        return service_size(u)
+        return service_size(u, minimal=minimal)
     else:
         assert nxtype == PARAMETER
-        return param_size(u)
+        return param_size(u, minimal=minimal)
 
-def node_size(u):
+def node_size(u, minimal=False):
     # rosname
     # node_type
     # args
     # conditions
     # traceability
-    cn = conditions_size(u["conditions"])
+    if minimal:
+        return 2
+    cn = conditions_size(u["conditions"], minimal=minimal)
     tn = traceability_size()
     return 3 + cn + tn
 
-def topic_size(u):
+def topic_size(u, minimal=False):
     # rosname
     # msg_type
     # conditions
     # traceability
-    cn = conditions_size(u["conditions"])
+    if minimal:
+        return 2
+    cn = conditions_size(u["conditions"], minimal=minimal)
     tn = traceability_list_size(u["traceability"])
     return 2 + cn + tn
 
-def service_size(u):
+def service_size(u, minimal=False):
     # rosname
     # srv_type
     # conditions
     # traceability
-    cn = conditions_size(u["conditions"])
+    if minimal:
+        return 2
+    cn = conditions_size(u["conditions"], minimal=minimal)
     tn = traceability_list_size(u["traceability"])
     return 2 + cn + tn
 
-def param_size(u):
+def param_size(u, minimal=False):
     # rosname
     # default_value
     # conditions
     # traceability
-    cn = conditions_size(u["conditions"])
+    if minimal:
+        return 1
+    cn = conditions_size(u["conditions"], minimal=minimal)
     tn = traceability_list_size(u["traceability"])
     return 2 + cn + tn
 
 
-def sizeof_edge(a):
+def min_sizeof_edge(a):
+    return sizeof_edge(a, minimal=True)
+
+def sizeof_edge(a, minimal=False):
     nxtype = a["nxtype"]
     if nxtype == PUBLISHER:
-        return publisher_size(a)
+        return publisher_size(a, minimal=minimal)
     elif nxtype == SUBSCRIBER:
-        return subscriber_size(a)
+        return subscriber_size(a, minimal=minimal)
     elif nxtype == SERVER:
-        return server_size(a)
+        return server_size(a, minimal=minimal)
     elif nxtype == CLIENT:
-        return client_size(a)
+        return client_size(a, minimal=minimal)
     elif nxtype == GET:
-        return get_param_size(a)
+        return get_param_size(a, minimal=minimal)
     else:
         assert nxtype == SET
-        return set_param_size(a)
+        return set_param_size(a, minimal=minimal)
 
-def publisher_size(a):
+def publisher_size(a, minimal=False):
     # rosname
     # msg_type
     # queue_size
     # conditions
     # traceability
-    cn = conditions_size(a["conditions"])
+    if minimal:
+        return 2
+    cn = conditions_size(a["conditions"], minimal=minimal)
     tn = traceability_size()
     return 3 + cn + tn
 
-def subscriber_size(a):
-    return publisher_size(a)
+def subscriber_size(a, minimal=False):
+    return publisher_size(a, minimal=minimal)
 
-def server_size(a):
+def server_size(a, minimal=False):
     # rosname
     # srv_type
     # conditions
     # traceability
-    cn = conditions_size(a["conditions"])
+    if minimal:
+        return 2
+    cn = conditions_size(a["conditions"], minimal=minimal)
     tn = traceability_size()
     return 2 + cn + tn
 
-def client_size(a):
-    return server_size(a)
+def client_size(a, minimal=False):
+    return server_size(a, minimal=minimal)
 
-def get_param_size(a):
+def get_param_size(a, minimal=False):
     # rosname
     # param_type
     # conditions
     # traceability
-    cn = conditions_size(a["conditions"])
+    if minimal:
+        return 2
+    cn = conditions_size(a["conditions"], minimal=minimal)
     tn = traceability_size()
     return 2 + cn + tn
 
-def set_param_size(a):
-    return get_param_size(a)
+def set_param_size(a, minimal=False):
+    return get_param_size(a, minimal=minimal)
 
-def conditions_size(cfg):
+def conditions_size(cfg, minimal=False):
+    if minimal:
+        return 0 if len(cfg) == 0 else 1
     n = 0
     queue = [cfg]
     while queue:

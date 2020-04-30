@@ -35,12 +35,17 @@ rules:
             - models
 metrics:
     simpleGED:
-        name: Simple Graph Edit Distance
+        name: Minimal Graph Edit Distance
         scope: configuration
-        description: "Graph Edit Distance for HAROS Configuration (simple data)"
+        description: "Graph Edit Distance for HAROS Configuration (minimal data)"
+        minimum: 0
+    midGED:
+        name: Basic Graph Edit Distance
+        scope: configuration
+        description: "Graph Edit Distance for HAROS Configuration (basic data)"
         minimum: 0
     fullGED:
-        name: Full Graph Edit Distance
+        name: Extended Graph Edit Distance
         scope: configuration
-        description: "Graph Edit Distance for HAROS Configuration (full data)"
+        description: "Graph Edit Distance for HAROS Configuration (all data)"
         minimum: 0
