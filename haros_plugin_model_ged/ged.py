@@ -25,6 +25,7 @@
 # Imports
 ###############################################################################
 
+from bisect import bisect
 from builtins import range
 from collections import namedtuple
 
@@ -38,6 +39,11 @@ from .haros2nx import (
 ###############################################################################
 # Constants
 ###############################################################################
+
+# costs of partially correct locations (nothing, just pkg, pkg and file)
+COST_LOC_NONE = 1#3
+COST_LOC_PKG = 1#2
+COST_LOC_FILE = 1
 
 TYPES = {
     NODE: "node",
@@ -59,33 +65,39 @@ TYPES = {
 
 def calc_ged(G1, G2, ext=False):
     if ext:
-        nsc = node_subst_cost_2
-        esc = edge_subst_cost_2
+        return graph_edit_distance(G1, G2,
+            node_subst_cost=node_subst_cost_2,
+            node_del_cost=sizeof_node,
+            node_ins_cost=sizeof_node,
+            edge_subst_cost=edge_subst_cost_2,
+            edge_del_cost=sizeof_edge,
+            edge_ins_cost=sizeof_edge)
     else:
-        nsc = node_subst_cost_0
-        esc = edge_subst_cost_0
-    return graph_edit_distance(G1, G2,
-        node_subst_cost=nsc,
-        node_del_cost=None, # defaults to 1
-        node_ins_cost=None, # defaults to 1
-        edge_subst_cost=esc,
-        edge_del_cost=None, # defaults to 1
-        edge_ins_cost=None) # defaults to 1
+        return graph_edit_distance(G1, G2,
+            node_subst_cost=node_subst_cost_0,
+            node_del_cost=None, # defaults to 1
+            node_ins_cost=None, # defaults to 1
+            edge_subst_cost=edge_subst_cost_0,
+            edge_del_cost=None, # defaults to 1
+            edge_ins_cost=None) # defaults to 1
 
 def calc_edit_paths(G1, G2, ext=False):
     if ext:
-        nsc = node_subst_cost_2
-        esc = edge_subst_cost_2
+        return optimal_edit_paths(G1, G2,
+            node_subst_cost=node_subst_cost_2,
+            node_del_cost=sizeof_node,
+            node_ins_cost=sizeof_node,
+            edge_subst_cost=edge_subst_cost_2,
+            edge_del_cost=sizeof_edge,
+            edge_ins_cost=sizeof_edge)
     else:
-        nsc = node_subst_cost_0
-        esc = edge_subst_cost_0
-    return optimal_edit_paths(G1, G2,
-        node_subst_cost=nsc,
-        node_del_cost=None, # defaults to 1
-        node_ins_cost=None, # defaults to 1
-        edge_subst_cost=esc,
-        edge_del_cost=None, # defaults to 1
-        edge_ins_cost=None) # defaults to 1
+        return optimal_edit_paths(G1, G2,
+            node_subst_cost=node_subst_cost_0,
+            node_del_cost=None, # defaults to 1
+            node_ins_cost=None, # defaults to 1
+            edge_subst_cost=edge_subst_cost_0,
+            edge_del_cost=None, # defaults to 1
+            edge_ins_cost=None) # defaults to 1
 
 
 ###############################################################################
@@ -96,17 +108,18 @@ def calc_edit_paths(G1, G2, ext=False):
 # node_del_cost(G1.nodes[n1])
 # node_ins_cost(G2.nodes[n2])
 
+def impossible_node_subst(u, v):
+    return 2 * max(sizeof_node(u), sizeof_node(v)) + 1
+
 def node_subst_cost_0(u, v):
     if u["nxtype"] != v["nxtype"]:
-        return 2.0
-    cost = 0.0
+        return impossible_node_subst(u, v)
     udata = u["rosname"]
     vdata = v["rosname"]
-    if "?" in vdata:
-        cost = 0.5
-    elif udata != vdata:
-        cost = 1.0
-    return cost
+    if udata == vdata:
+        return 0
+    #if "?" in vdata and udata.count("/") == vdata.count("/"):
+    return 1
 
 def node_subst_cost_2(u, v, diff=False):
     # u: graph node from ground truth
@@ -116,80 +129,65 @@ def node_subst_cost_2(u, v, diff=False):
     #   where 0.0 is perfect and 1.0 is completely wrong
     nxtype = u["nxtype"]
     if nxtype != v["nxtype"]:
-        return 2.0
-    d = []
-    total = float(len(v) - 1) # ignore metadata
-    score = total # start with everything right and apply penalties
-    score -= cmp_resource(u, v, d)
+        return impossible_node_subst(u, v)
+    d = [] if diff else NullList()
+    cost = cmp_resource(u, v, d)
     if nxtype == NODE:
-        score -= cmp_node_ext(u, v, d)
+        cost += cmp_node_ext(u, v, d)
     elif nxtype == TOPIC:
-        score -= cmp_topic_ext(u, v, d)
+        cost += cmp_topic_ext(u, v, d)
     elif nxtype == SERVICE:
-        score -= cmp_service_ext(u, v, d)
-    else:
-        assert nxtype == PARAMETER
-        score -= cmp_param_ext(u, v, d)
-    score = (total - score) / total # normalize
-    assert score >= 0.0 and score <= 1.0
-    if diff:
-        return score, d
-    return score
+        cost += cmp_service_ext(u, v, d)
+    elif nxtype == PARAMETER:
+        cost += cmp_param_ext(u, v, d)
+    return (cost, d) if diff else cost
 
 
 def cmp_resource(u, v, d):
-    penalty = 0.0
     udata = u["rosname"]
     vdata = v["rosname"]
-    if "?" in vdata:
-        penalty += 0.5
-        d.append(("rosname", udata, vdata))
-    elif udata != vdata:
-        penalty += 1.0
-        d.append(("rosname", udata, vdata))
-    return penalty
+    if udata == vdata:
+        return 0
+    d.append(("rosname", udata, vdata))
+    #if "?" in vdata and udata.count("/") == vdata.count("/"):
+    return 1
 
 def cmp_node_ext(u, v, d):
-    penalty = 0.0
+    cost = 0
     udata = u["node_type"]
     vdata = v["node_type"]
-    if "?" in vdata:
-        penalty += 0.5
-        d.append(("node_type", udata, vdata))
-    elif udata != vdata:
-        penalty += 1.0
+    if udata != vdata:
+        cost += 1
         d.append(("node_type", udata, vdata))
     udata = u["args"]
     vdata = v["args"]
     if udata != vdata:
-        penalty += 1.0
+        cost += 1
         d.append(("args", udata, vdata))
-    penalty += cmp_conditions(u["conditions"], v["conditions"], d)
-    penalty += cmp_traceability(u["traceability"], v["traceability"], d)
-    return penalty
+    cost += cmp_conditions(u["conditions"], v["conditions"], d)
+    cost += cmp_traceability(u["traceability"], v["traceability"], d)
+    return cost
 
 def cmp_topic_ext(u, v, d):
-    penalty = 0.0
-    penalty += cmp_conditions(u["conditions"], v["conditions"], d)
-    penalty += cmp_traceability_list(u["traceability"], v["traceability"], d)
-    return penalty
+    cost = cmp_conditions(u["conditions"], v["conditions"], d)
+    cost += cmp_traceability_list(u["traceability"], v["traceability"], d)
+    return cost
 
 def cmp_service_ext(u, v, d):
-    penalty = 0.0
-    penalty += cmp_conditions(u["conditions"], v["conditions"], d)
-    penalty += cmp_traceability_list(u["traceability"], v["traceability"], d)
-    return penalty
+    cost = cmp_conditions(u["conditions"], v["conditions"], d)
+    cost += cmp_traceability_list(u["traceability"], v["traceability"], d)
+    return cost
 
 def cmp_param_ext(u, v, d):
-    penalty = 0.0
+    cost = 0
     udata = u["default_value"]
     vdata = v["default_value"]
     if udata != vdata:
-        penalty += 1.0
+        cost += 1
         d.append(("default_value", udata, vdata))
-    penalty += cmp_conditions(u["conditions"], v["conditions"], d)
-    penalty += cmp_traceability_list(u["traceability"], v["traceability"], d)
-    return penalty
+    cost += cmp_conditions(u["conditions"], v["conditions"], d)
+    cost += cmp_traceability_list(u["traceability"], v["traceability"], d)
+    return cost
 
 
 ###############################################################################
@@ -200,10 +198,13 @@ def cmp_param_ext(u, v, d):
 # edge_del_cost(G1[u1][v1])
 # edge_ins_cost(G2[u2][v2])
 
+def impossible_edge_subst(a, b):
+    return 2 * max(sizeof_edge(a), sizeof_edge(b)) + 1
+
 def edge_subst_cost_0(a, b):
     if a["nxtype"] != b["nxtype"]:
-        return 2.0
-    return 0.0
+        return impossible_edge_subst(a, b)
+    return 0
 
 def edge_subst_cost_2(a, b, diff=False):
     # receives the edge attribute dictionaries as inputs
@@ -213,69 +214,59 @@ def edge_subst_cost_2(a, b, diff=False):
     #   where 0.0 is perfect and 1.0 is completely wrong
     nxtype = a["nxtype"]
     if nxtype != b["nxtype"]:
-        return 2.0
-    d = []
-    total = float(len(b) - 1) # ignore metadata
-    score = total # start with everything right and apply penalties
-    score -= cmp_link(a, b, d)
+        return impossible_edge_subst(a, b)
+    d = [] if diff else NullList()
+    cost = cmp_link(a, b, d)
     if nxtype == PUBLISHER or nxtype == SUBSCRIBER:
-        score -= cmp_pubsub_ext(a, b, d)
+        cost += cmp_pubsub_ext(a, b, d)
     elif nxtype == SERVER or nxtype == CLIENT:
-        score -= cmp_srvcli_ext(a, b, d)
-    else:
-        assert nxtype == GET or nxtype == SET
-        score -= cmp_getset_ext(a, b, d)
-    score = (total - score) / total # normalize
-    assert score >= 0.0 and score <= 1.0
-    if diff:
-        return score, d
-    return score
+        cost += cmp_srvcli_ext(a, b, d)
+    elif nxtype == GET or nxtype == SET:
+        cost += cmp_getset_ext(a, b, d)
+    return (cost, d) if diff else cost
 
 def cmp_link(a, b, d):
-    penalty = 0.0
+    cost = 0
     adata = a["rosname"]
     bdata = b["rosname"]
-    if "?" in bdata:
-        penalty += 0.5
+    if adata != bdata:
+        cost += 1
         d.append(("rosname", adata, bdata))
-    elif adata != bdata:
-        penalty += 1.0
-        d.append(("rosname", adata, bdata))
-    penalty += cmp_conditions(a["conditions"], b["conditions"], d)
-    penalty += cmp_traceability(a["traceability"], b["traceability"], d)
-    return penalty
+    cost += cmp_conditions(a["conditions"], b["conditions"], d)
+    cost += cmp_traceability(a["traceability"], b["traceability"], d)
+    return cost
 
 def cmp_pubsub_ext(a, b, d):
-    penalty = 0.0
+    cost = 0
     adata = a["queue_size"]
     bdata = b["queue_size"]
     if adata != bdata:
-        penalty += 1.0
+        cost += 1
         d.append(("queue_size", adata, bdata))
     adata = a["msg_type"]
     bdata = b["msg_type"]
     if adata != bdata:
-        penalty += 1.0
+        cost += 1
         d.append(("msg_type", adata, bdata))
-    return penalty
+    return cost
 
 def cmp_srvcli_ext(a, b, d):
-    penalty = 0.0
+    cost = 0
     adata = a["srv_type"]
     bdata = b["srv_type"]
     if adata != bdata:
-        penalty += 1.0
+        cost += 1
         d.append(("srv_type", adata, bdata))
-    return penalty
+    return cost
 
 def cmp_getset_ext(a, b, d):
-    penalty = 0.0
+    cost = 0
     adata = a["param_type"]
     bdata = b["param_type"]
     if adata != bdata:
-        penalty += 1.0
+        cost += 1
         d.append(("param_type", adata, bdata))
-    return penalty
+    return cost
 
 
 ###############################################################################
@@ -283,11 +274,10 @@ def cmp_getset_ext(a, b, d):
 ###############################################################################
 
 def cmp_conditions(cfg1, cfg2, d):
-    # list of lists of conditions - a path
     if not cfg1 and cfg2:
-        return 1.0
+        return conditions_size(cfg2)
     if cfg1 and not cfg2:
-        return 1.0
+        return conditions_size(cfg1)
     n = p = s = 0
     queue = [(cfg1, cfg2)]
     while queue:
@@ -307,109 +297,95 @@ def cmp_conditions(cfg1, cfg2, d):
                     s += 1
                     d.append(("conditions", None, g))
         queue = new_queue
-    penalty = 1.0 - f1(n, p, s)
-    assert penalty >= 0.0 and penalty <= 1.0
-    return penalty
+    return (n - p) + s
 
 
-def cmp_traceability_list(t1, t2, d):
-    assert len(t1) > 0
-    if not t2:
-        return 1.0
-    pd1 = loc_list_to_dict(t1) # package -> file -> {line}
-    pd2 = loc_list_to_dict(t2) # package -> file -> {line}
-    # expected, predicted, spurious packages
-    n_pkg = p_pkg = s_pkg = 0
-    # expected, predicted, spurious files
-    n_file = p_file = s_file = 0
-    # expected, predicted, spurious lines
-    n_line = p_line = s_line = 0
-    # calculate predictions
-    for p, fd1 in pd1.items():
-        n_pkg += 1
-        fd2 = pd2.get(p)
-        if fd2 is None:
-            # ---- begin reporting ----
-            for f, ls1 in fd1.items():
-                for l in ls1:
-                    d.append(("traceability", (p, f, l), None))
-            # ---- end reporting ----
-            continue
-        p_pkg += 1
-        _f = (p, None, None)
-        for f, ls1 in fd1.items():
-            n_file += 1
-            ls2 = fd2.get(f)
-            if ls2 is None:
-                # ---- begin reporting ----
-                for l in ls1:
-                    d.append(("traceability", (p, f, l), _f))
-                # ---- end reporting ----
-                continue
-            p_file += 1
-            _f = (p, f, None)
-            for l in ls1:
-                n_line += 1
-                if l in ls2:
-                    p_line += 1
-                else:
-                    # ---- begin reporting ----
-                    d.append(("traceability", (p, f, l), _f))
-                    # ---- end reporting ----
-    # calculate spurious
-    for p, fd2 in pd2.items():
-        fd1 = pd1.get(p)
-        if fd1 is None:
-            # ---- begin reporting ----
-            for f, ls2 in fd2.items():
-                for l in ls2:
-                    d.append(("traceability", None, (p, f, l)))
-            # ---- end reporting ----
-            s_pkg += 1
-            continue
-        for f, ls2 in fd2.items():
-            ls1 = fd1.get(f)
-            if ls1 is None:
-                # ---- begin reporting ----
-                for l in ls2:
-                    d.append(("traceability", None, (p, f, l)))
-                # ---- end reporting ----
-                s_file += 1
-                continue
-            for l in ls2:
-                if l not in ls1:
-                    # ---- begin reporting ----
-                    d.append(("traceability", None, (p, f, l)))
-                    # ---- end reporting ----
-                    s_line += 1
-    # F1 measures for package, file and line
-    x = f1(n_pkg, p_pkg, s_pkg)
-    y = f1(n_file, p_file, s_file)
-    z = f1(n_line, p_line, s_line)
-    # F1 for packages > F1 for files > F1 for lines
-    penalty = 1.0 - (x+x+x + y+y + z) / 6.0
-    assert penalty >= 0.0 and penalty <= 1.0
-    return penalty
+def cmp_traceability_list(tl1, tl2, d):
+    # None comes before data
+    # s = [1,3,5,7,9]
+    # bisect(s, 0) == 0
+    # bisect(s, 2) == 1
+    # bisect(s, 3) == 2
+    # bisect(s, 10) == 5
+    missed = sorted(tl1)
+    n = traceability_list_size(tl1)
+    p = s = 0
+    bucket1, bucket2, bucket3, bucket4 = location_buckets(tl2)
+    for loc in bucket4:
+        i = bisect(missed, loc)
+        if i > 0 and missed[i-1] == loc:
+            p += COST_LOC_NONE
+            del missed[i-1]
+        else:
+            s += COST_LOC_NONE
+            d.append(("traceability", None, loc))
+    for loc in bucket3:
+        i = bisect(missed, loc)
+        if i >= len(missed): # no match candidate
+            s += COST_LOC_NONE
+            d.append(("traceability", None, loc))
+        else: # there is a match candidate
+            m = missed[i]
+            if (loc.package != m.package or loc.file != m.file
+                    or loc.line != m.line):
+                s += COST_LOC_NONE
+                d.append(("traceability", None, loc))
+            else:
+                p += COST_LOC_NONE
+                d.append(("traceability", m, loc))
+                del missed[i]
+    for loc in bucket2:
+        i = bisect(missed, loc)
+        if i >= len(missed): # no match candidate
+            s += COST_LOC_PKG
+            d.append(("traceability", None, loc))
+        else: # there is a match candidate
+            m = missed[i]
+            if loc.package != m.package or loc.file != m.file:
+                s += COST_LOC_PKG
+                d.append(("traceability", None, loc))
+            else:
+                p += COST_LOC_PKG
+                d.append(("traceability", m, loc))
+                del missed[i]
+    for loc in bucket1:
+        i = bisect(missed, loc)
+        if i >= len(missed): # no match candidate
+            s += COST_LOC_FILE
+            d.append(("traceability", None, loc))
+        else: # there is a match candidate
+            m = missed[i]
+            if loc.package != m.package:
+                s += COST_LOC_FILE
+                d.append(("traceability", None, loc))
+            else:
+                p += COST_LOC_FILE
+                d.append(("traceability", m, loc))
+                del missed[i]
+    for loc in missed:
+        d.append(("traceability", loc, None))
+    assert p <= n
+    return (n - p) + s
 
-def loc_list_to_dict(locs):
-    pd = {}
+
+def location_buckets(locs):
+    bucket1 = [] # one component
+    bucket2 = [] # two components
+    bucket3 = [] # three components
+    bucket4 = [] # all components
     for loc in locs:
-        p = loc.package
-        f = loc.file
-        l = loc.line
-        if p is None:
+        if loc.package is None:
             continue
-        if p not in pd:
-            pd[p] = {}
-        if f is None:
-            continue
-        fd = pd[p]
-        if f not in fd:
-            fd[f] = set()
-        if l is None:
-            continue
-        fd[f].add(l)
-    return pd
+        if loc.file is None:
+            bucket1.append(loc)
+        elif loc.line is None:
+            bucket2.append(loc)
+        elif loc.column is None:
+            bucket3.append(loc)
+        else:
+            bucket4.append(loc)
+    return bucket1, bucket2, bucket3, bucket4
+
 
 def f1(expected, predicted, spurious):
     if expected == 0:
@@ -425,20 +401,15 @@ def f1(expected, predicted, spurious):
 
 def cmp_traceability(t1, t2, d):
     # returns the penalty for a source location
-    assert t1 is not None
-    if t2 is None:
-        d.append(("traceability", t1, t2))
-        return 1.0
+    if t1 == t2:
+        return 0
+    d.append(("traceability", t1, t2))
     if t1.package != t2.package:
-        d.append(("traceability", t1, t2))
-        return 1.0
+        return COST_LOC_NONE
     if t1.file != t2.file:
-        d.append(("traceability", t1, t2))
-        return 0.5
-    if t1.line != t2.line:
-        d.append(("traceability", t1, t2))
-        return 1.0 / 6.0
-    return 0.0
+        return COST_LOC_PKG
+    assert t1.line != t2.line or t1.column != t2.column
+    return COST_LOC_FILE
 
 
 ###############################################################################
@@ -491,3 +462,152 @@ def diff_from_paths(paths, truth, model):
                     t = TYPES[e1["nxtype"]]
                     diff.partial_edges.append((t, a[0], a[1], b[0], b[1], d))
     return diff
+
+
+###############################################################################
+# Attribute Counting Functions
+###############################################################################
+
+def sizeof_graph(G):
+    n = 0
+    for u in G.nodes.values():
+        n += sizeof_node(u)
+    for a in G.edges.values():
+        n += sizeof_edge(a)
+    return n
+
+
+def sizeof_node(u):
+    nxtype = u["nxtype"]
+    if nxtype == NODE:
+        return node_size(u)
+    elif nxtype == TOPIC:
+        return topic_size(u)
+    elif nxtype == SERVICE:
+        return service_size(u)
+    else:
+        assert nxtype == PARAMETER
+        return param_size(u)
+
+def node_size(u):
+    # rosname
+    # node_type
+    # args
+    # conditions
+    # traceability
+    cn = conditions_size(u["conditions"])
+    tn = traceability_size()
+    return 3 + cn + tn
+
+def topic_size(u):
+    # rosname
+    # msg_type
+    # conditions
+    # traceability
+    cn = conditions_size(u["conditions"])
+    tn = traceability_list_size(u["traceability"])
+    return 2 + cn + tn
+
+def service_size(u):
+    # rosname
+    # srv_type
+    # conditions
+    # traceability
+    cn = conditions_size(u["conditions"])
+    tn = traceability_list_size(u["traceability"])
+    return 2 + cn + tn
+
+def param_size(u):
+    # rosname
+    # default_value
+    # conditions
+    # traceability
+    cn = conditions_size(u["conditions"])
+    tn = traceability_list_size(u["traceability"])
+    return 2 + cn + tn
+
+
+def sizeof_edge(a):
+    nxtype = a["nxtype"]
+    if nxtype == PUBLISHER:
+        return publisher_size(a)
+    elif nxtype == SUBSCRIBER:
+        return subscriber_size(a)
+    elif nxtype == SERVER:
+        return server_size(a)
+    elif nxtype == CLIENT:
+        return client_size(a)
+    elif nxtype == GET:
+        return get_param_size(a)
+    else:
+        assert nxtype == SET
+        return set_param_size(a)
+
+def publisher_size(a):
+    # rosname
+    # msg_type
+    # queue_size
+    # conditions
+    # traceability
+    cn = conditions_size(a["conditions"])
+    tn = traceability_size()
+    return 3 + cn + tn
+
+def subscriber_size(a):
+    return publisher_size(a)
+
+def server_size(a):
+    # rosname
+    # srv_type
+    # conditions
+    # traceability
+    cn = conditions_size(a["conditions"])
+    tn = traceability_size()
+    return 2 + cn + tn
+
+def client_size(a):
+    return server_size(a)
+
+def get_param_size(a):
+    # rosname
+    # param_type
+    # conditions
+    # traceability
+    cn = conditions_size(a["conditions"])
+    tn = traceability_size()
+    return 2 + cn + tn
+
+def set_param_size(a):
+    return get_param_size(a)
+
+def conditions_size(cfg):
+    n = 0
+    queue = [cfg]
+    while queue:
+        new_queue = []
+        for g in queue:
+            for guard, child in g.items():
+                n += 1
+                new_queue.append(child)
+        queue = new_queue
+    return n
+
+def traceability_size():
+    return COST_LOC_NONE
+
+def traceability_list_size(locs):
+    return traceability_size() * len(locs)
+
+
+###############################################################################
+# Helper Classes
+###############################################################################
+
+class NullList(object):
+    __slots__ = ()
+
+    def append(self, item):
+        pass
+
+    def extend(self, items):
+        pass

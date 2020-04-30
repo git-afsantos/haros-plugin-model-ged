@@ -42,10 +42,12 @@ user_data:
                                 package: pkg
                                 file: path/to/file
                                 line: 1
+                                column: 1
                       traceability:
                         package: pkg
                         file: path/to/file.launch
                         line: 42
+                        column: 1
                 parameters:
                     - rosname: /full/name
                       default_value: null
@@ -54,6 +56,7 @@ user_data:
                         package: pkg
                         file: path/to/file.launch
                         line: 42
+                        column: 1
             links:
                 publishers:
                     - node: /rosname
@@ -66,6 +69,7 @@ user_data:
                         package: pkg
                         file: src/file.cpp
                         line: 29
+                        column: 1
                 subscribers: []
                 servers: []
                 clients: []
@@ -78,7 +82,7 @@ user_data:
 # Imports
 ###############################################################################
 
-from .ged_int import calc_edit_paths, diff_from_paths, sizeof_graph
+from .ged import calc_edit_paths, diff_from_paths, sizeof_graph
 from .haros2nx import config_to_nx, truth_to_nx
 from .output_format import diff_to_html, write_txt
 
