@@ -238,15 +238,13 @@ def truth_to_nx(truth):
 ###############################################################################
 
 def truth_launch_to_nx(launch, G):
-    for node in launch.get("nodes", ()):
-        rosname = node["rosname"]
+    for rosname, node in launch.get("nodes", {}).items():
         uid = "[N]" + rosname
         G.add_node(uid, nxtype=NODE, rosname=rosname,
             node_type=node["node_type"], args=node.get("args", []),
             conditions=cfg_from_list(node.get("conditions", ())),
             traceability=yaml_to_location(node["traceability"]))
-    for param in launch.get("parameters", ()):
-        rosname = param["rosname"]
+    for rosname, param in launch.get("parameters", {}).items():
         uid = "[P]" + rosname
         G.add_node(uid, nxtype=PARAMETER, rosname=rosname,
             default_value=param.get("default_value"),
