@@ -242,16 +242,15 @@ def truth_launch_to_nx(launch, G):
         rosname = node["rosname"]
         uid = "[N]" + rosname
         G.add_node(uid, nxtype=NODE, rosname=rosname,
-            node_type=node["node_type"], args=node["args"],
-            conditions=cfg_from_list(node["conditions"]),
+            node_type=node["node_type"], args=node.get("args", []),
+            conditions=cfg_from_list(node.get("conditions", ())),
             traceability=yaml_to_location(node["traceability"]))
     for param in launch.get("parameters", ()):
         rosname = param["rosname"]
         uid = "[P]" + rosname
-        attrs["conditions"] = cfg_from_list(attrs["conditions"])
         G.add_node(uid, nxtype=PARAMETER, rosname=rosname,
-            default_value=param["default_value"],
-            conditions=cfg_from_list(param["conditions"]),
+            default_value=param.get("default_value"),
+            conditions=cfg_from_list(param.get("conditions", ())),
             traceability=yaml_to_location(param["traceability"]))
 
 def topic_from_link(link, G):
@@ -263,7 +262,11 @@ def topic_from_link(link, G):
             msg_type=link["msg_type"],
             conditions={}, traceability=[])
         attrs = G.nodes[uid]
-    attrs["conditions"].update(cfg_from_list(link["conditions"]))
+    cfg = cfg_from_list(link.get("conditions", ()))
+    if cfg:
+        attrs["conditions"].update(cfg)
+    else:
+        attrs["conditions"] = {}
     attrs["traceability"].append(yaml_to_location(link["traceability"]))
 
 def service_from_link(link, G):
@@ -275,7 +278,11 @@ def service_from_link(link, G):
             srv_type=link["srv_type"],
             conditions={}, traceability=[])
         attrs = G.nodes[uid]
-    attrs["conditions"].update(cfg_from_list(link["conditions"]))
+    cfg = cfg_from_list(link.get("conditions", ()))
+    if cfg:
+        attrs["conditions"].update(cfg)
+    else:
+        attrs["conditions"] = {}
     attrs["traceability"].append(yaml_to_location(link["traceability"]))
 
 def param_from_link(link, G):
@@ -286,7 +293,11 @@ def param_from_link(link, G):
         G.add_node(uid, nxtype=PARAMETER, rosname=rosname, default_value=None,
             conditions={}, traceability=[])
         attrs = G.nodes[uid]
-    attrs["conditions"].update(cfg_from_list(link["conditions"]))
+    cfg = cfg_from_list(link.get("conditions", ()))
+    if cfg:
+        attrs["conditions"].update(cfg)
+    else:
+        attrs["conditions"] = {}
     attrs["traceability"].append(yaml_to_location(link["traceability"]))
 
 
@@ -302,7 +313,7 @@ def truth_msg_links_to_nx(links, G):
         uid = "{} -> {}".format(s, t)
         G.add_edge(s, t, key=uid, nxtype=PUBLISHER, rosname=link["rosname"],
             msg_type=link["msg_type"], queue_size=link["queue_size"],
-            conditions=cfg_from_list(link["conditions"]),
+            conditions=cfg_from_list(link.get("conditions", ())),
             traceability=yaml_to_location(link["traceability"]))
     for link in links.get("subscribers", ()):
         topic_from_link(link, G)
@@ -311,7 +322,7 @@ def truth_msg_links_to_nx(links, G):
         uid = "{} -> {}".format(s, t)
         G.add_edge(s, t, key=uid, nxtype=SUBSCRIBER, rosname=link["rosname"],
             msg_type=link["msg_type"], queue_size=link["queue_size"],
-            conditions=cfg_from_list(link["conditions"]),
+            conditions=cfg_from_list(link.get("conditions", ())),
             traceability=yaml_to_location(link["traceability"]))
 
 def truth_srv_links_to_nx(links, G):
@@ -322,7 +333,7 @@ def truth_srv_links_to_nx(links, G):
         uid = "{} -> {}".format(s, t)
         G.add_edge(s, t, key=uid, nxtype=CLIENT, rosname=link["rosname"],
             srv_type=link["srv_type"],
-            conditions=cfg_from_list(link["conditions"]),
+            conditions=cfg_from_list(link.get("conditions", ())),
             traceability=yaml_to_location(link["traceability"]))
     for link in links.get("servers", ()):
         service_from_link(link, G)
@@ -331,7 +342,7 @@ def truth_srv_links_to_nx(links, G):
         uid = "{} -> {}".format(s, t)
         G.add_edge(s, t, key=uid, nxtype=SERVER, rosname=link["rosname"],
             srv_type=link["srv_type"],
-            conditions=cfg_from_list(link["conditions"]),
+            conditions=cfg_from_list(link.get("conditions", ())),
             traceability=yaml_to_location(link["traceability"]))
 
 def truth_param_links_to_nx(links, G):
@@ -342,7 +353,7 @@ def truth_param_links_to_nx(links, G):
         uid = "{} -> {}".format(s, t)
         G.add_edge(s, t, key=uid, nxtype=SET, rosname=link["rosname"],
             param_type=link["param_type"],
-            conditions=cfg_from_list(link["conditions"]),
+            conditions=cfg_from_list(link.get("conditions", ())),
             traceability=yaml_to_location(link["traceability"]))
     for link in links.get("gets", ()):
         param_from_link(link, G)
@@ -351,7 +362,7 @@ def truth_param_links_to_nx(links, G):
         uid = "{} -> {}".format(s, t)
         G.add_edge(s, t, key=uid, nxtype=GET, rosname=link["rosname"],
             param_type=link["param_type"],
-            conditions=cfg_from_list(link["conditions"]),
+            conditions=cfg_from_list(link.get("conditions", ())),
             traceability=yaml_to_location(link["traceability"]))
 
 
