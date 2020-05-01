@@ -305,60 +305,72 @@ def param_from_link(link, G):
 
 def truth_msg_links_to_nx(links, G):
     for link in links.get("publishers", ()):
+        topic = link["topic"]
         topic_from_link(link, G)
         s = "[N]" + link["node"]
-        t = "[T]" + link["topic"]
+        t = "[T]" + topic
         uid = "{} -> {}".format(s, t)
-        G.add_edge(s, t, key=uid, nxtype=PUBLISHER, rosname=link["rosname"],
+        G.add_edge(s, t, key=uid, nxtype=PUBLISHER,
+            rosname=link.get("rosname", topic),
             msg_type=link["msg_type"], queue_size=link["queue_size"],
             conditions=cfg_from_list(link.get("conditions", ())),
             traceability=yaml_to_location(link["traceability"]))
     for link in links.get("subscribers", ()):
+        topic = link["topic"]
         topic_from_link(link, G)
-        s = "[T]" + link["topic"]
+        s = "[T]" + topic
         t = "[N]" + link["node"]
         uid = "{} -> {}".format(s, t)
-        G.add_edge(s, t, key=uid, nxtype=SUBSCRIBER, rosname=link["rosname"],
+        G.add_edge(s, t, key=uid, nxtype=SUBSCRIBER,
+            rosname=link.get("rosname", topic),
             msg_type=link["msg_type"], queue_size=link["queue_size"],
             conditions=cfg_from_list(link.get("conditions", ())),
             traceability=yaml_to_location(link["traceability"]))
 
 def truth_srv_links_to_nx(links, G):
     for link in links.get("clients", ()):
+        service = link["service"]
         service_from_link(link, G)
         s = "[N]" + link["node"]
-        t = "[S]" + link["service"]
+        t = "[S]" + service
         uid = "{} -> {}".format(s, t)
-        G.add_edge(s, t, key=uid, nxtype=CLIENT, rosname=link["rosname"],
+        G.add_edge(s, t, key=uid, nxtype=CLIENT,
+            rosname=link.get("rosname", service),
             srv_type=link["srv_type"],
             conditions=cfg_from_list(link.get("conditions", ())),
             traceability=yaml_to_location(link["traceability"]))
     for link in links.get("servers", ()):
+        service = link["service"]
         service_from_link(link, G)
-        s = "[S]" + link["service"]
+        s = "[S]" + service
         t = "[N]" + link["node"]
         uid = "{} -> {}".format(s, t)
-        G.add_edge(s, t, key=uid, nxtype=SERVER, rosname=link["rosname"],
+        G.add_edge(s, t, key=uid, nxtype=SERVER,
+            rosname=link.get("rosname", service),
             srv_type=link["srv_type"],
             conditions=cfg_from_list(link.get("conditions", ())),
             traceability=yaml_to_location(link["traceability"]))
 
 def truth_param_links_to_nx(links, G):
     for link in links.get("sets", ()):
+        param = link["parameter"]
         param_from_link(link, G)
         s = "[N]" + link["node"]
-        t = "[P]" + link["parameter"]
+        t = "[P]" + param
         uid = "{} -> {}".format(s, t)
-        G.add_edge(s, t, key=uid, nxtype=SET, rosname=link["rosname"],
+        G.add_edge(s, t, key=uid, nxtype=SET,
+            rosname=link.get("rosname", param),
             param_type=link["param_type"],
             conditions=cfg_from_list(link.get("conditions", ())),
             traceability=yaml_to_location(link["traceability"]))
     for link in links.get("gets", ()):
+        param = link["parameter"]
         param_from_link(link, G)
-        s = "[P]" + link["parameter"]
+        s = "[P]" + param
         t = "[N]" + link["node"]
         uid = "{} -> {}".format(s, t)
-        G.add_edge(s, t, key=uid, nxtype=GET, rosname=link["rosname"],
+        G.add_edge(s, t, key=uid, nxtype=GET,
+            rosname=link.get("rosname", param),
             param_type=link["param_type"],
             conditions=cfg_from_list(link.get("conditions", ())),
             traceability=yaml_to_location(link["traceability"]))
