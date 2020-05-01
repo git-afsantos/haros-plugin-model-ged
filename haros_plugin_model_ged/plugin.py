@@ -29,34 +29,36 @@
 """
 user_data:
     haros_plugin_model_ged:
+        import:
+            - config_name
         truth:
             launch:
                 nodes:
-                    - rosname: /full/name
-                      node_type: pkg/type
-                      args: []
-                      conditions:
-                        - - statement: if
-                            condition: x == 0
-                            traceability:
-                                package: pkg
-                                file: path/to/file
-                                line: 1
-                                column: 1
-                      traceability:
-                        package: pkg
-                        file: path/to/file.launch
-                        line: 42
-                        column: 1
+                    /full/name:
+                        node_type: pkg/type
+                        args: []
+                        conditions:
+                            - - statement: if
+                                condition: x == 0
+                                traceability:
+                                    package: pkg
+                                    file: path/to/file
+                                    line: 1
+                                    column: 1
+                        traceability:
+                            package: pkg
+                            file: path/to/file.launch
+                            line: 42
+                            column: 1
                 parameters:
-                    - rosname: /full/name
-                      default_value: null
-                      conditions: []
-                      traceability:
-                        package: pkg
-                        file: path/to/file.launch
-                        line: 42
-                        column: 1
+                    /full/name:
+                        default_value: null
+                        conditions: []
+                        traceability:
+                            package: pkg
+                            file: path/to/file.launch
+                            line: 42
+                            column: 1
             links:
                 publishers:
                     - node: /rosname
@@ -91,6 +93,8 @@ user_data:
 # Imports
 ###############################################################################
 
+from builtins import range
+
 from .ged import calc_edit_paths, diff_from_paths, sizeof_graph
 from .haros2nx import config_to_nx, truth_to_nx
 from .output_format import diff_to_html, write_txt
@@ -106,19 +110,74 @@ def configuration_analysis(iface, config):
     truth = attr.get("truth")
     if truth is None:
         return
-    truth = truth_to_nx(truth)
-    model = config_to_nx(config)
-    paths, s_ged = calc_edit_paths(truth, model, lvl=0)
-    paths, m_ged = calc_edit_paths(truth, model, lvl=1)
-    paths, f_ged = calc_edit_paths(truth, model, lvl=2)
+    base = new_base()
+    build_base(base, attr.get("imports", ()), iface)
+    update_base(base, truth)
+    Gt = truth_to_nx(base)
+    Gp = config_to_nx(config)
+    paths, s_ged = calc_edit_paths(Gt, Gp, lvl=0)
+    paths, m_ged = calc_edit_paths(Gt, Gp, lvl=1)
+    paths, f_ged = calc_edit_paths(Gt, Gp, lvl=2)
     iface.report_metric("simpleGED", s_ged)
     iface.report_metric("midGED", m_ged)
     iface.report_metric("fullGED", f_ged)
-    diff = diff_from_paths(paths, truth, model)
-    details = issue(s_ged, m_ged, f_ged, truth, diff)
+    diff = diff_from_paths(paths, Gt, Gp)
+    details = issue(s_ged, m_ged, f_ged, Gt, diff)
     iface.report_runtime_violation("reportGED", details)
-    write_txt("ged-output.txt", truth, model, paths, diff)
+    write_txt("ged-output.txt", Gt, Gp, paths, diff)
     iface.export_file("ged-output.txt")
+
+
+###############################################################################
+# Helper Functions
+###############################################################################
+
+def new_base():
+    return {
+        "launch": {
+            "nodes": {},
+            "parameters": {}
+        },
+        "links": {
+            "publishers": [],
+            "subscribers": [],
+            "servers": [],
+            "clients": [],
+            "sets": [],
+            "gets": []
+        }
+    }
+
+
+def build_base(base, config_names, iface):
+    for config_name in config_names:
+        config = iface.find_configuration(config_name)
+        attr = config.user_attributes["haros_plugin_model_ged"]
+        build_base(base, attr.get("imports", ()), iface)
+        update_base(base, attr["truth"])
+
+def update_base(base, truth):
+    launch = truth["launch"]
+    base["launch"]["nodes"].update(launch.get("nodes", {}))
+    base["launch"]["parameters"].update(launch.get("parameters", {}))
+    links = truth.get("links")
+    if links:
+        assert launch.get("nodes") is not None
+        node_names = list(launch["nodes"].keys())
+        for key in ("publishers", "subscribers", "servers",
+                    "clients", "sets", "gets"):
+            base_list = base["links"][key]
+            replace_links(links.get(key, ()), base_list, node_names)
+
+def replace_links(links, base_list, nodes):
+    # remove old links for nodes that were replaced
+    i = len(base_list) - 1
+    while i >= 0:
+        if base_list[i]["node"] in nodes:
+            del base_list[i]
+        i -= 1
+    # add new links for replaced nodes
+    base_list.extend(links)
 
 
 def issue(s_ged, m_ged, f_ged, G, diff):
