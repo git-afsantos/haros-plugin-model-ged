@@ -391,5 +391,7 @@ def cfg_from_list(paths):
     return cfg
 
 def yaml_to_location(traceability):
+    if traceability is None:
+        return Location(None, None, None, None)
     return Location(traceability["package"], traceability["file"],
         traceability["line"], traceability["column"])
