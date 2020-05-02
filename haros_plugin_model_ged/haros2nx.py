@@ -225,11 +225,17 @@ def truth_to_nx(truth):
     launch = truth.get("launch")
     if launch:
         truth_launch_to_nx(launch, G)
-    links = truth.get("links")
-    if links:
-        truth_msg_links_to_nx(links, G)
-        truth_srv_links_to_nx(links, G)
-        truth_param_links_to_nx(links, G)
+        links = truth.get("links")
+        if links:
+            truth_msg_links_to_nx(links, G)
+            truth_srv_links_to_nx(links, G)
+            truth_param_links_to_nx(links, G)
+    not_nodes = (TOPIC, SERVICE, PARAMETER)
+    for u in G.nodes.values():
+        nxtype = u["nxtype"]
+        if nxtype in not_nodes:
+            if True in u["conditions"]:
+                u["conditions"] = {}
     return G
 
 
@@ -249,7 +255,7 @@ def truth_launch_to_nx(launch, G):
         G.add_node(uid, nxtype=PARAMETER, rosname=rosname,
             default_value=param.get("default_value"),
             conditions=cfg_from_list(param.get("conditions", ())),
-            traceability=yaml_to_location(param["traceability"]))
+            traceability=[yaml_to_location(param["traceability"])])
 
 def topic_from_link(link, G):
     rosname = link["topic"]
@@ -264,7 +270,7 @@ def topic_from_link(link, G):
     if cfg:
         attrs["conditions"].update(cfg)
     else:
-        attrs["conditions"] = {}
+        attrs["conditions"] = {True: None}
     attrs["traceability"].append(yaml_to_location(link["traceability"]))
 
 def service_from_link(link, G):
@@ -280,7 +286,7 @@ def service_from_link(link, G):
     if cfg:
         attrs["conditions"].update(cfg)
     else:
-        attrs["conditions"] = {}
+        attrs["conditions"] = {True: None}
     attrs["traceability"].append(yaml_to_location(link["traceability"]))
 
 def param_from_link(link, G):
@@ -295,7 +301,7 @@ def param_from_link(link, G):
     if cfg:
         attrs["conditions"].update(cfg)
     else:
-        attrs["conditions"] = {}
+        attrs["conditions"] = {True: None}
     attrs["traceability"].append(yaml_to_location(link["traceability"]))
 
 
