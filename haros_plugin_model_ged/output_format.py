@@ -89,9 +89,15 @@ def delta_html(deltas):
 # Text Formatting
 ###############################################################################
 
-def write_txt(fname, truth, model, paths, diff):
+def write_txt(fname, truth, model, paths, diff, setup_time=None, ged0_time=None,
+              ged1_time=None, ged2_time=None):
     with open(fname, "w") as f:
         f.write("{}\n".format("\n".join([
+            "---- TIMES ----",
+            "setup time: {}".format(setup_time),
+            "GED0 time: {}".format(ged0_time),
+            "GED1 time: {}".format(ged1_time),
+            "GED2 time: {}".format(ged2_time),
             "---- TRUTH NODES ----",
             str(truth.nodes.values()),
             "---- TRUTH EDGES ----",

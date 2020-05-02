@@ -40,11 +40,10 @@ user_data:
                         conditions:
                             - - statement: if
                                 condition: x == 0
-                                traceability:
-                                    package: pkg
-                                    file: path/to/file
-                                    line: 1
-                                    column: 1
+                                package: pkg
+                                file: path/to/file
+                                line: 1
+                                column: 1
                         traceability:
                             package: pkg
                             file: path/to/file.launch
@@ -95,6 +94,8 @@ user_data:
 
 from builtins import range
 
+from timeit import default_timer as timer
+
 from .ged import calc_edit_paths, diff_from_paths, sizeof_graph
 from .haros2nx import config_to_nx, truth_to_nx
 from .output_format import diff_to_html, write_txt
@@ -110,21 +111,40 @@ def configuration_analysis(iface, config):
     truth = attr.get("truth")
     if truth is None:
         return
+    # ---- SETUP PHASE ---------------------------------------------------------
+    start_time = timer()
     base = new_base()
     build_base(base, attr.get("imports", ()), iface)
     update_base(base, truth)
     Gt = truth_to_nx(base)
     Gp = config_to_nx(config)
+    end_time = timer()
+    setup_time = end_time - start_time
+    # ---- GED0 PHASE ----------------------------------------------------------
+    start_time = timer()
     paths, s_ged = calc_edit_paths(Gt, Gp, lvl=0)
+    end_time = timer()
+    ged0_time = end_time - start_time
+    # ---- GED1 PHASE ----------------------------------------------------------
+    start_time = timer()
     paths, m_ged = calc_edit_paths(Gt, Gp, lvl=1)
+    end_time = timer()
+    ged1_time = end_time - start_time
+    # ---- GED2 PHASE ----------------------------------------------------------
+    start_time = timer()
     paths, f_ged = calc_edit_paths(Gt, Gp, lvl=2)
+    end_time = timer()
+    ged2_time = end_time - start_time
+    # ---- REPORTING PHASE -----------------------------------------------------
     iface.report_metric("simpleGED", s_ged)
     iface.report_metric("midGED", m_ged)
     iface.report_metric("fullGED", f_ged)
     diff = diff_from_paths(paths, Gt, Gp)
     details = issue(s_ged, m_ged, f_ged, Gt, diff)
     iface.report_runtime_violation("reportGED", details)
-    write_txt("ged-output.txt", Gt, Gp, paths, diff)
+    write_txt("ged-output.txt", Gt, Gp, paths, diff,
+        setup_time=setup_time, ged0_time=ged0_time,
+        ged1_time=ged1_time, ged2_time=ged2_time)
     iface.export_file("ged-output.txt")
 
 
