@@ -52,6 +52,7 @@ user_data:
                 parameters:
                     /full/name:
                         default_value: null
+                        default_type: str
                         conditions: []
                         traceability:
                             package: pkg
@@ -74,8 +75,8 @@ user_data:
                 subscribers: []
                 servers: []
                 clients: []
-                sets: []
-                gets: []
+                setters: []
+                getters: []
 """
 
 
@@ -163,8 +164,8 @@ def new_base():
             "subscribers": [],
             "servers": [],
             "clients": [],
-            "sets": [],
-            "gets": []
+            "setters": [],
+            "getters": []
         }
     }
 
@@ -185,7 +186,7 @@ def update_base(base, truth):
         assert launch.get("nodes") is not None
         node_names = list(launch["nodes"].keys())
         for key in ("publishers", "subscribers", "servers",
-                    "clients", "sets", "gets"):
+                    "clients", "setters", "getters"):
             base_list = base["links"][key]
             replace_links(links.get(key, ()), base_list, node_names)
 

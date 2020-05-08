@@ -358,7 +358,7 @@ def truth_srv_links_to_nx(links, G):
             traceability=yaml_to_location(link["traceability"]))
 
 def truth_param_links_to_nx(links, G):
-    for link in links.get("sets", ()):
+    for link in links.get("setters", ()):
         param = link["parameter"]
         param_from_link(link, G)
         s = "[N]" + link["node"]
@@ -369,7 +369,7 @@ def truth_param_links_to_nx(links, G):
             param_type=link["param_type"],
             conditions=cfg_from_list(link.get("conditions", ())),
             traceability=yaml_to_location(link["traceability"]))
-    for link in links.get("gets", ()):
+    for link in links.get("getters", ()):
         param = link["parameter"]
         param_from_link(link, G)
         s = "[P]" + param
