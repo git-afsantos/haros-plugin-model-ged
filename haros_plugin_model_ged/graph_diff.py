@@ -29,43 +29,20 @@ from bisect import bisect
 from builtins import range
 from collections import namedtuple
 
-from networkx import graph_edit_distance, optimal_edit_paths
-
-from .haros2nx import (
-    NODE, TOPIC, SERVICE, PARAMETER,
-    PUBLISHER, SUBSCRIBER, SERVER, CLIENT, GET, SET
-)
-
-# https://networkx.github.io/documentation/stable/reference/algorithms/generated/networkx.algorithms.matching.max_weight_matching.html#networkx.algorithms.matching.max_weight_matching
-
-# https://networkx.github.io/documentation/stable/reference/algorithms/generated/networkx.algorithms.bipartite.matching.minimum_weight_full_matching.html#networkx.algorithms.bipartite.matching.minimum_weight_full_matching
-
-###############################################################################
-# Constants
-###############################################################################
-
-# costs of partially correct locations (nothing, just pkg, pkg and file)
-COST_LOC_NONE = 1#3
-COST_LOC_PKG = 1#2
-COST_LOC_FILE = 1
-
-TYPES = {
-    NODE: "node",
-    TOPIC: "topic",
-    SERVICE: "service",
-    PARAMETER: "parameter",
-    PUBLISHER: "topic publisher",
-    SUBSCRIBER: "topic subscriber",
-    SERVER: "service server",
-    CLIENT: "service client",
-    GET: "get parameter",
-    SET: "set parameter"
-}
-
+from .graph_matching import matching_by_name_type_loc, matching_by_loc_name_type
 
 ###############################################################################
 # Graph Difference Calculation
 ###############################################################################
+
+Metrics = namedtuple("Metrics",
+    ("cor", "inc", "par", "mis", "spu", "pre", "rec", "f1"))
+
+Hierarchy = namedtuple("Hierarchy", ("lv1", "lv2", "lv3"))
+
+Report = namedtuple("Report", ("overall", "launch", "source"))
+
+
 
 NodeAttrMap = namedtuple("NodeAttrMap",
     ("node", "topic", "service", "param"))
@@ -100,7 +77,7 @@ def calc_diff_2(truth, config):
 
 
 def calc_diff(truth, config, node_attrs, edge_attrs):
-    for 
+    match_data = matching_by_name_type_loc(config, truth)
 
 
 ###############################################################################
