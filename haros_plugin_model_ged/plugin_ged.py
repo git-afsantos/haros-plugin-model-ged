@@ -32,49 +32,61 @@ user_data:
         import:
             - config_name
         truth:
-            nodes:
-                /full/name:
-                    node_type: pkg/type
-                    args: []
-                    conditions:
-                        - - statement: if
-                            condition: x == 0
+            launch:
+                nodes:
+                    /full/name:
+                        node_type: pkg/type
+                        args: []
+                        conditions:
+                            - - statement: if
+                                condition: x == 0
+                                package: pkg
+                                file: path/to/file
+                                line: 1
+                                column: 1
+                        traceability:
                             package: pkg
-                            file: path/to/file
-                            line: 1
+                            file: path/to/file.launch
+                            line: 42
                             column: 1
-                    traceability:
-                        package: pkg
-                        file: path/to/file.launch
-                        line: 42
-                        column: 1
-                    publishers:
-                        - topic: /rosname
-                          rosname: /before_remaps
-                          msg_type: std_msgs/Empty
-                          queue_size: 10
-                          conditions: []
-                          traceability:
+                parameters:
+                    /full/name:
+                        default_value: null
+                        default_type: str
+                        conditions: []
+                        traceability:
                             package: pkg
-                            file: src/file.cpp
-                            line: 29
+                            file: path/to/file.launch
+                            line: 42
                             column: 1
-                    subscribers: []
-                    servers: []
-                    clients: []
-                    setters: []
-                    getters: []
-            parameters:
-                /full/name:
-                    default_value: null
-                    default_type: str
-                    conditions: []
-                    traceability:
+            links:
+                publishers:
+                    - node: /rosname
+                      topic: /rosname
+                      rosname: /before_remaps
+                      msg_type: std_msgs/Empty
+                      queue_size: 10
+                      conditions: []
+                      traceability:
                         package: pkg
-                        file: path/to/file.launch
-                        line: 42
+                        file: src/file.cpp
+                        line: 29
                         column: 1
+                subscribers: []
+                servers: []
+                clients: []
+                setters: []
+                getters: []
 """
+
+
+# Analysis Level 0:
+#   - Graph node names (rosname)
+#   - Graph edges without attributes
+# Analysis Level 1:
+#   - names and types
+# Analysis Level 2:
+#   - All attributes
 
 
 ###############################################################################
@@ -142,7 +154,20 @@ def configuration_analysis(iface, config):
 ###############################################################################
 
 def new_base():
-    return {"nodes": {}, "parameters": {}}
+    return {
+        "launch": {
+            "nodes": {},
+            "parameters": {}
+        },
+        "links": {
+            "publishers": [],
+            "subscribers": [],
+            "servers": [],
+            "clients": [],
+            "setters": [],
+            "getters": []
+        }
+    }
 
 
 def build_base(base, config_names, iface):
@@ -153,8 +178,27 @@ def build_base(base, config_names, iface):
         update_base(base, attr["truth"])
 
 def update_base(base, truth):
-    base["nodes"].update(truth.get("nodes", {}))
-    base["parameters"].update(truth.get("parameters", {}))
+    launch = truth["launch"]
+    base["launch"]["nodes"].update(launch.get("nodes", {}))
+    base["launch"]["parameters"].update(launch.get("parameters", {}))
+    links = truth.get("links")
+    if links:
+        assert launch.get("nodes") is not None
+        node_names = list(launch["nodes"].keys())
+        for key in ("publishers", "subscribers", "servers",
+                    "clients", "setters", "getters"):
+            base_list = base["links"][key]
+            replace_links(links.get(key, ()), base_list, node_names)
+
+def replace_links(links, base_list, nodes):
+    # remove old links for nodes that were replaced
+    i = len(base_list) - 1
+    while i >= 0:
+        if base_list[i]["node"] in nodes:
+            del base_list[i]
+        i -= 1
+    # add new links for replaced nodes
+    base_list.extend(links)
 
 
 def issue(s_ged, m_ged, f_ged, G, diff):

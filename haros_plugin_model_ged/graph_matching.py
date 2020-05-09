@@ -42,27 +42,28 @@ GraphData = namedtuple("GraphData",
      "clients", "servers", "setters", "getters"))
 
 NodeAttrs = namedtuple("NodeAttrs",
-    ("key", "rosname", "rostype", "traceability", "args", "conditions"))
+    ("key", "rosname", "rostype", "traceability", "args", "conditions",
+     "publishers", "subscribers", "clients", "servers", "setters", "getters"))
 
 ParamAttrs = namedtuple("ParamAttrs",
     ("key", "rosname", "rostype", "traceability", "value", "conditions"))
 
 PubAttrs = namedtuple("PubAttrs",
-    ("key", "node", "rosname", "rostype", "traceability", "original_name",
+    ("key", "rosname", "rostype", "traceability", "original_name",
      "queue_size", "latched", "conditions"))
 
 SubAttrs = namedtuple("SubAttrs",
-    ("key", "node", "rosname", "rostype", "traceability", "original_name",
+    ("key", "rosname", "rostype", "traceability", "original_name",
      "queue_size", "conditions"))
 
 CliAttrs = namedtuple("CliSrvAttrs",
-    ("key", "node", "rosname", "rostype", "traceability", "original_name",
+    ("key", "rosname", "rostype", "traceability", "original_name",
      "conditions"))
 
 SrvAttrs = CliAttrs
 
 SetAttrs = namedtuple("SetGetAttrs",
-    ("key", "node", "rosname", "rostype", "traceability", "original_name",
+    ("key", "rosname", "rostype", "traceability", "original_name",
      "value", "conditions"))
 
 GetAttrs = SetAttrs
@@ -73,7 +74,7 @@ Guard = namedtuple("Guard",
 
 Location = namedtuple("Location", ("package", "file", "line", "column"))
 
-Matching = namedtuple("Matching", ("matched", "missed", "spurious"))
+Matching = namedtuple("Matching", ("matches", "missing", "spurious"))
 
 
 ###############################################################################
@@ -81,204 +82,72 @@ Matching = namedtuple("Matching", ("matched", "missed", "spurious"))
 ###############################################################################
 
 def matching_by_name(config, truth):
-    return calc_matching(config, truth,
-        cost_node=cost_rosname,
-        cost_param=cost_rosname,
-        cost_pub=cost_link_rosname,
-        cost_sub=cost_link_rosname,
-        cost_cli=cost_link_rosname,
-        cost_srv=cost_link_rosname,
-        cost_set=cost_link_rosname,
-        cost_get=cost_link_rosname)
+    return matching_by(config, truth, cost_rosname)
 
 def matching_by_name_type(config, truth):
-    return calc_matching(config, truth,
-        cost_node=cost_rosname_rostype,
-        cost_param=cost_rosname_rostype,
-        cost_pub=cost_link_rosname_rostype,
-        cost_sub=cost_link_rosname_rostype,
-        cost_cli=cost_link_rosname_rostype,
-        cost_srv=cost_link_rosname_rostype,
-        cost_set=cost_link_rosname_rostype,
-        cost_get=cost_link_rosname_rostype)
+    return matching_by(config, truth, cost_rosname_rostype)
 
 def matching_by_name_type_loc(config, truth):
-    return calc_matching(config, truth,
-        cost_node=cost_rosname_rostype_traceability,
-        cost_param=cost_rosname_rostype_traceability,
-        cost_pub=cost_link_rosname_rostype_traceability,
-        cost_sub=cost_link_rosname_rostype_traceability,
-        cost_cli=cost_link_rosname_rostype_traceability,
-        cost_srv=cost_link_rosname_rostype_traceability,
-        cost_set=cost_link_rosname_rostype_traceability,
-        cost_get=cost_link_rosname_rostype_traceability)
+    return matching_by(config, truth, cost_rosname_rostype_traceability)
 
 def matching_by_loc(config, truth):
-    return calc_matching(config, truth,
-        cost_node=cost_traceability_main,
-        cost_param=cost_traceability_main,
-        cost_pub=cost_traceability_main,
-        cost_sub=cost_traceability_main,
-        cost_cli=cost_traceability_main,
-        cost_srv=cost_traceability_main,
-        cost_set=cost_traceability_main,
-        cost_get=cost_traceability_main)
+    return matching_by(config, truth, cost_traceability_main)
 
 def matching_by_loc_name(config, truth):
-    return calc_matching(config, truth,
-        cost_node=cost_traceability_rosname,
-        cost_param=cost_traceability_rosname,
-        cost_pub=cost_traceability_link_rosname,
-        cost_sub=cost_traceability_link_rosname,
-        cost_cli=cost_traceability_link_rosname,
-        cost_srv=cost_traceability_link_rosname,
-        cost_set=cost_traceability_link_rosname,
-        cost_get=cost_traceability_link_rosname)
+    return matching_by(config, truth, cost_traceability_rosname)
 
 def matching_by_loc_name_type(config, truth):
-    return calc_matching(config, truth,
-        cost_node=cost_traceability_rosname_rostype,
-        cost_param=cost_traceability_rosname_rostype,
-        cost_pub=cost_traceability_link_rosname_rostype,
-        cost_sub=cost_traceability_link_rosname_rostype,
-        cost_cli=cost_traceability_link_rosname_rostype,
-        cost_srv=cost_traceability_link_rosname_rostype,
-        cost_set=cost_traceability_link_rosname_rostype,
-        cost_get=cost_traceability_link_rosname_rostype)
+    return matching_by(config, truth, cost_traceability_rosname_rostype)
 
 
-def calc_matching(config, truth, cost_node=None, cost_param=None,
-        cost_pub=None, cost_sub=None, cost_cli=None, cost_srv=None,
-        cost_set=None, cost_get=None):
-    m1 = node_matching(config.nodes.enabled,
-        truth["launch"]["nodes"], cost_node)
-    m2 = param_matching(config.parameters.enabled,
-        truth["launch"]["parameters"], cost_param)
-    m3 = pub_matching(config.topics.enabled,
-        truth["links"]["publishers"], cost_pub)
-    m4 = sub_matching(config.topics.enabled,
-        truth["links"]["subscribers"], cost_sub)
-    m5 = cli_matching(config.services.enabled,
-        truth["links"]["clients"], cost_cli)
-    m6 = srv_matching(config.services.enabled,
-        truth["links"]["servers"], cost_srv)
-    m7 = setter_matching(config.parameters.enabled,
-        truth["links"]["setters"], cost_set)
-    m8 = getter_matching(config.parameters.enabled,
-        truth["links"]["getters"], cost_get)
-    return GraphData(m1, m2, m3, m4, m5, m6, m7, m8)
+def matching_by(config, truth, cost_function):
+    M_nodes = node_matching(config.nodes.enabled,
+        truth["nodes"], cost_function)
+    M_params = param_matching(config.parameters.enabled,
+        truth["parameters"], cost_function)
+    return GraphData(M_nodes, M_params,
+        link_matching(M_nodes, "publishers", cost_function),
+        link_matching(M_nodes, "subscribers", cost_function),
+        link_matching(M_nodes, "clients", cost_function),
+        link_matching(M_nodes, "servers", cost_function),
+        link_matching(M_nodes, "setters", cost_function),
+        link_matching(M_nodes, "getters", cost_function))
 
 
 ###############################################################################
 # Matching Functions
 ###############################################################################
 
-def node_matching(config_nodes, truth_nodes, cf):
-    i = 1
-    lhs = []
-    rhs = []
-    for node in config_nodes:
-        lhs.append(convert_haros_node(i, node))
-        i += 1
-    for rosname, data in truth_nodes.items():
-        rhs.append(convert_truth_node(i, rosname, data))
-        i += 1
-    return _matching(lhs, rhs, cf)
+def node_matching(config_nodes, truth_nodes, cost_function):
+    lhs = [convert_haros_node(node) for node in config_nodes]
+    rhs = [convert_truth_node(rosname, data)
+           for rosname, data in truth_nodes.items()]
+    return _matching(lhs, rhs, cost_function)
 
-def param_matching(config_params, truth_params, cf):
-    i = 1
-    lhs = []
-    rhs = []
-    for param in config_params:
-        if not param.launch:
-            continue
-        lhs.append(convert_haros_param(i, param))
-        i += 1
-    for rosname, data in truth_params.items():
-        rhs.append(convert_truth_param(i, rosname, data))
-        i += 1
-    return _matching(lhs, rhs, cf)
+def param_matching(config_params, truth_params, cost_function):
+    lhs = [convert_haros_param(param) for param in config_params
+           if param.launch is not None]
+    rhs = [convert_truth_param(rosname, data)
+           for rosname, data in truth_params.items()]
+    return _matching(lhs, rhs, cost_function)
 
-def pub_matching(config_topics, truth_pubs, cf):
-    i = 1
-    lhs = []
-    rhs = []
-    for topic in config_topics:
-        for link in topic.publishers:
-            lhs.append(convert_haros_pub(i, link))
-            i += 1
-    for link in truth_pubs:
-        rhs.append(convert_truth_pub(i, link))
-        i += 1
-    return _matching(lhs, rhs, cf)
-
-def sub_matching(config_topics, truth_subs, cf):
-    i = 1
-    lhs = []
-    rhs = []
-    for topic in config_topics:
-        for link in topic.subscribers:
-            lhs.append(convert_haros_sub(i, link))
-            i += 1
-    for link in truth_subs:
-        rhs.append(convert_truth_sub(i, link))
-        i += 1
-    return _matching(lhs, rhs, cf)
-
-def cli_matching(config_services, truth_clients, cf):
-    i = 1
-    lhs = []
-    rhs = []
-    for service in config_services:
-        for link in service.clients:
-            lhs.append(convert_haros_cli(i, link))
-            i += 1
-    for link in truth_clients:
-        rhs.append(convert_truth_cli(i, link))
-        i += 1
-    return _matching(lhs, rhs, cf)
-
-def srv_matching(config_services, truth_servers, cf):
-    i = 1
-    lhs = []
-    rhs = []
-    for service in config_services:
-        if service.server is not None:
-            lhs.append(convert_haros_srv(i, service.server))
-            i += 1
-    for link in truth_servers:
-        rhs.append(convert_truth_srv(i, link))
-        i += 1
-    return _matching(lhs, rhs, cf)
-
-def setter_matching(config_params, truth_setters, cf):
-    i = 1
-    lhs = []
-    rhs = []
-    for param in config_params:
-        for link in param.writes:
-            lhs.append(convert_haros_setter(i, link))
-            i += 1
-    for link in truth_setters:
-        rhs.append(convert_truth_setter(i, link))
-        i += 1
-    return _matching(lhs, rhs, cf)
-
-def getter_matching(config_params, truth_getters, cf):
-    i = 1
-    lhs = []
-    rhs = []
-    for param in config_params:
-        for link in param.reads:
-            lhs.append(convert_haros_getter(i, link))
-            i += 1
-    for link in truth_getters:
-        rhs.append(convert_truth_getter(i, link))
-        i += 1
-    return _matching(lhs, rhs, cf)
+def link_matching(M_nodes, attr, cost_function):
+    M = Matching([], [], [])
+    for node in M_nodes.missing:
+        M.missing.extend(getattr(node, attr))
+    for node in M_nodes.spurious:
+        M.spurious.extend(getattr(node, attr))
+    for node, gold in M_nodes.matches:
+        lhs = getattr(node, attr)
+        rhs = getattr(gold, attr)
+        m = _matching(lhs, rhs, cost_function)
+        M.matches.extend(m.matches)
+        M.missing.extend(m.missing)
+        M.spurious.extend(m.spurious)
+    return M
 
 
-def _matching(lhs, rhs, cf):
+def _matching(lhs, rhs, cost_function):
     G = nx.Graph()
     top = []
     for v in rhs:
@@ -287,8 +156,8 @@ def _matching(lhs, rhs, cf):
     for u in lhs:
         G.add_node(u.key, data=u, bipartite=0)
         for v in rhs:
-            weight = cf(u, v)
-            G.add_edge(u, v, weight=weight)
+            weight = cost_function(u, v)
+            G.add_edge(u.key, v.key, weight=weight)
     M = bipartite.matching.minimum_weight_full_matching(G, top_nodes=top)
     # The matching is returned as a dictionary such that
     #   M[u] == v if node u is matched to node v.
@@ -297,11 +166,11 @@ def _matching(lhs, rhs, cf):
     missed = []
     spurious = []
     for u in lhs:
-        v = M.get(u.key)
-        if v is None:
+        key = M.get(u.key)
+        if key is None:
             spurious.append(u)
         else:
-            matched.append((u, v))
+            matched.append((u, G.nodes[key]["data"]))
     for v in rhs:
         if v.key not in M:
             missed.append(v)
@@ -314,26 +183,10 @@ def _matching(lhs, rhs, cf):
 
 # '/?/?' means both namespace and own name are unknown
 # '/?' means the global namespace with own name unknown
-def _cost_rosname(predicted, gold):
-    if predicted == gold:
-        return 0
-    if "?" in predicted:
-        p = name_pattern(predicted)
-        if p.match(gold):
-            return 1
-    return 2
-
 def cost_rosname(u, v):
-    return _cost_rosname(u.rosname, v.rosname)
-
-def cost_link_rosname(u, v):
-    return _cost_rosname(u.node, v.node) + _cost_rosname(u.rosname, v.rosname)
-
-
-def _cost_rostype(predicted, gold):
-    if predicted == gold:
+    if u.rosname == v.rosname:
         return 0
-    if predicted is None or "?" in predicted:
+    if "?" in u.rosname and rosname_match(u.rosname, v.rosname):
         return 1
     return 2
 
@@ -344,13 +197,8 @@ def cost_rostype(u, v):
         return 1
     return 2
 
-
 def cost_rosname_rostype(u, v):
     return 10 * cost_rosname(u, v) + cost_rostype(u, v)
-
-def cost_link_rosname_rostype(u, v):
-    return 10 * cost_link_rosname(u, v) + cost_rostype(u, v)
-
 
 def cost_traceability(u, v):
     p = u.traceability
@@ -369,13 +217,9 @@ def cost_traceability(u, v):
         return 1
     return 0
 
-
 def cost_rosname_rostype_traceability(u, v):
-    cost = 100 * cost_rosname(u, v) + 10 * cost_rostype(u, v)
-    return cost + cost_traceability(u, v)
-
-def cost_link_rosname_rostype_traceability(u, v):
-    cost = 100 * cost_link_rosname(u, v) + 10 * cost_rostype(u, v)
+    cost = 100 * cost_rosname(u, v)
+    cost = cost + 10 * cost_rostype(u, v)
     return cost + cost_traceability(u, v)
 
 
@@ -413,24 +257,13 @@ def cost_traceability_main(u, v):
         return 3
     return 0
 
-
 def cost_traceability_rosname(u, v):
     cost = 10 * cost_traceability_main(u, v)
     return cost + cost_rosname(u, v)
 
-def cost_traceability_link_rosname(u, v):
-    cost = 10 * cost_traceability_main(u, v)
-    return cost + cost_link_rosname(u, v)
-
-
 def cost_traceability_rosname_rostype(u, v):
     cost = 100 * cost_traceability_main(u, v)
-    cost += 10 * cost_rosname(u, v)
-    return cost + cost_rostype(u, v)
-
-def cost_traceability_link_rosname_rostype(u, v):
-    cost = 100 * cost_traceability_main(u, v)
-    cost += 10 * cost_link_rosname(u, v)
+    cost = cost + 10 * cost_rosname(u, v)
     return cost + cost_rostype(u, v)
 
 
@@ -438,53 +271,60 @@ def cost_traceability_link_rosname_rostype(u, v):
 # HAROS Conversion Functions
 ###############################################################################
 
-def convert_haros_node(i, node):
+def convert_haros_node(node):
     traceability = convert_haros_location(node._location)
     conditions = convert_haros_conditions(node.conditions)
-    return NodeAttrs(i, node.id, node.type, traceability, node.argv, conditions)
+    pubs = [convert_haros_pub(link) for link in node.publishers]
+    subs = [convert_haros_sub(link) for link in node.subscribers]
+    clients = [convert_haros_cli(link) for link in node.clients]
+    servers = [convert_haros_srv(link) for link in node.servers]
+    setters = [convert_haros_setter(link) for link in node.writes]
+    getters = [convert_haros_getter(link) for link in node.reads]
+    return NodeAttrs(id(node), node.id, node.type, traceability, node.argv,
+        conditions, pubs, subs, clients, servers, setters, getters)
 
-def convert_haros_param(i, param):
+def convert_haros_param(param):
     assert param.launch is not None
     traceability = convert_haros_location(param._location)
     conditions = convert_haros_conditions(param.conditions)
-    return ParamAttrs(i, param.id, param.type, traceability, param.value,
-                      conditions)
+    return ParamAttrs(id(param), param.id, param.type, traceability,
+        param.value, conditions)
 
-def convert_haros_pub(i, link):
+def convert_haros_pub(link):
     traceability = convert_haros_location(link.source_location)
     conditions = convert_haros_conditions(link.conditions)
-    return PubAttrs(i, link.node.id, link.topic.id, link.type, traceability,
-        link.rosname.full, link.queue_size, False, conditions)
+    return PubAttrs(id(link), link.node.id, link.topic.id, link.type,
+        traceability, link.rosname.full, link.queue_size, False, conditions)
 
-def convert_haros_sub(i, link):
+def convert_haros_sub(link):
     traceability = convert_haros_location(link.source_location)
     conditions = convert_haros_conditions(link.conditions)
-    return SubAttrs(i, link.node.id, link.topic.id, link.type, traceability,
-        link.rosname.full, link.queue_size, conditions)
+    return SubAttrs(id(link), link.node.id, link.topic.id, link.type,
+        traceability, link.rosname.full, link.queue_size, conditions)
 
-def convert_haros_cli(i, link):
+def convert_haros_cli(link):
     traceability = convert_haros_location(link.source_location)
     conditions = convert_haros_conditions(link.conditions)
-    return CliAttrs(i, link.node.id, link.service.id, link.type, traceability,
-        link.rosname.full, conditions)
+    return CliAttrs(id(link), link.node.id, link.service.id, link.type,
+        traceability, link.rosname.full, conditions)
 
-def convert_haros_srv(i, link):
+def convert_haros_srv(link):
     traceability = convert_haros_location(link.source_location)
     conditions = convert_haros_conditions(link.conditions)
-    return SrvAttrs(i, link.node.id, link.service.id, link.type, traceability,
-        link.rosname.full, conditions)
+    return SrvAttrs(id(link), link.node.id, link.service.id, link.type,
+        traceability, link.rosname.full, conditions)
 
-def convert_haros_setter(i, link):
+def convert_haros_setter(link):
     traceability = convert_haros_location(link.source_location)
     conditions = convert_haros_conditions(link.conditions)
-    return SetAttrs(i, link.node.id, link.parameter.id, link.type, traceability,
-        link.rosname.full, None, conditions)
+    return SetAttrs(id(link), link.node.id, link.parameter.id, link.type,
+        traceability, link.rosname.full, None, conditions)
 
-def convert_haros_getter(i, link):
+def convert_haros_getter(link):
     traceability = convert_haros_location(link.source_location)
     conditions = convert_haros_conditions(link.conditions)
-    return GetAttrs(i, link.node.id, link.parameter.id, link.type, traceability,
-        link.rosname.full, None, conditions)
+    return GetAttrs(id(link), link.node.id, link.parameter.id, link.type,
+        traceability, link.rosname.full, None, conditions)
 
 
 def convert_haros_location(loc):
@@ -507,22 +347,29 @@ def convert_haros_conditions(conditions):
 # Ground Truth Conversion Functions
 ###############################################################################
 
-def convert_truth_node(i, rosname, data):
+def convert_truth_node(rosname, data):
     rostype = data["node_type"]
     traceability = convert_truth_traceability(data["traceability"])
     args = data.get("args", [])
     conditions = convert_truth_conditions(data.get("conditions", ()))
-    return NodeAttrs(i, rosname, rostype, traceability, args, conditions)
+    pubs = [convert_truth_pub(link) for link in data.get("publishers", ())]
+    subs = [convert_truth_sub(link) for link in data.get("subscribers", ())]
+    clients = [convert_truth_cli(link) for link in data.get("clients", ())]
+    servers = [convert_truth_srv(link) for link in data.get("servers", ())]
+    setters = [convert_truth_setter(link) for link in data.get("setters", ())]
+    getters = [convert_truth_getter(link) for link in data.get("getters", ())]
+    return NodeAttrs(id(data), rosname, rostype, traceability, args, conditions,
+        pubs, subs, clients, servers, setters, getters)
 
-def convert_truth_param(i, rosname, data):
+def convert_truth_param(rosname, data):
     rostype = data.get("default_type")
     traceability = convert_truth_traceability(data["traceability"])
     value = data.get("default_value")
     conditions = convert_truth_conditions(data.get("conditions", ()))
-    return ParamAttrs(i, rosname, rostype, traceability, value, conditions)
+    return ParamAttrs(id(data), rosname, rostype, traceability, value,
+        conditions)
 
-def convert_truth_pub(i, link):
-    node = link["node"]
+def convert_truth_pub(link):
     rosname = link["topic"]
     rostype = link["msg_type"]
     traceability = convert_truth_traceability(link["traceability"])
@@ -530,61 +377,56 @@ def convert_truth_pub(i, link):
     queue_size = link["queue_size"]
     latched = link.get("latched", False)
     conditions = convert_truth_conditions(link.get("conditions", ()))
-    return PubAttrs(i, node, rosname, rostype, traceability,
-                    original_name, queue_size, latched, conditions)
+    return PubAttrs(id(link), rosname, rostype, traceability,
+        original_name, queue_size, latched, conditions)
 
-def convert_truth_sub(i, link):
-    node = link["node"]
+def convert_truth_sub(link):
     rosname = link["topic"]
     rostype = link["msg_type"]
     traceability = convert_truth_traceability(link["traceability"])
     original_name = link.get("rosname", rosname)
     queue_size = link["queue_size"]
     conditions = convert_truth_conditions(link.get("conditions", ()))
-    return SubAttrs(i, node, rosname, rostype, traceability,
-                    original_name, queue_size, conditions)
+    return SubAttrs(id(link), rosname, rostype, traceability,
+        original_name, queue_size, conditions)
 
-def convert_truth_cli(i, link):
-    node = link["node"]
+def convert_truth_cli(link):
     rosname = link["service"]
     rostype = link["srv_type"]
     traceability = convert_truth_traceability(link["traceability"])
     original_name = link.get("rosname", rosname)
     conditions = convert_truth_conditions(link.get("conditions", ()))
-    return CliAttrs(i, node, rosname, rostype, traceability,
-                    original_name, conditions)
+    return CliAttrs(id(link), rosname, rostype, traceability,
+        original_name, conditions)
 
-def convert_truth_srv(i, link):
-    node = link["node"]
+def convert_truth_srv(link):
     rosname = link["service"]
     rostype = link["srv_type"]
     traceability = convert_truth_traceability(link["traceability"])
     original_name = link.get("rosname", rosname)
     conditions = convert_truth_conditions(link.get("conditions", ()))
-    return SrvAttrs(i, node, rosname, rostype, traceability,
-                    original_name, conditions)
+    return SrvAttrs(id(link), rosname, rostype, traceability,
+        original_name, conditions)
 
-def convert_truth_setter(i, link):
-    node = link["node"]
+def convert_truth_setter(link):
     rosname = link["parameter"]
     rostype = link["param_type"]
     traceability = convert_truth_traceability(link["traceability"])
     original_name = link.get("rosname", rosname)
     value = link.get("value")
     conditions = convert_truth_conditions(link.get("conditions", ()))
-    return SetAttrs(i, node, rosname, rostype, traceability,
-                    original_name, value, conditions)
+    r.append(SetAttrs(id(link), rosname, rostype, traceability,
+        original_name, value, conditions)
 
-def convert_truth_getter(i, link):
-    node = link["node"]
+def convert_truth_getter(link):
     rosname = link["parameter"]
     rostype = link["param_type"]
     traceability = convert_truth_traceability(link["traceability"])
     original_name = link.get("rosname", rosname)
     value = link.get("default_value")
     conditions = convert_truth_conditions(link.get("conditions", ()))
-    return GetAttrs(i, node, rosname, rostype, traceability,
-                    original_name, value, conditions)
+    r.append(GetAttrs(id(link), rosname, rostype, traceability,
+        original_name, value, conditions)
 
 
 def convert_truth_traceability(traceability):
@@ -611,7 +453,7 @@ def convert_truth_conditions(paths):
 # Helper Functions
 ###############################################################################
 
-def name_pattern(rosname):
+def rosname_match(rosname, expected):
     parts = []
     prev = "/"
     n = len(rosname)
@@ -640,4 +482,4 @@ def name_pattern(rosname):
     if i < n:
         parts.append(rosname[i:])
     parts.append("$")
-    return re.compile("".join(parts))
+    return re.match("".join(parts), expected)

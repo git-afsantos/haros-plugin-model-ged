@@ -29,13 +29,20 @@ from bisect import bisect
 from builtins import range
 from collections import namedtuple
 
-from .graph_matching import matching_by_name_type_loc, matching_by_loc_name_type
+from .graph_matching import (
+    matching_by_name_type_loc, matching_by_loc_name_type, rosname_match
+)
 
 ###############################################################################
 # Graph Difference Calculation
 ###############################################################################
 
-Metrics = namedtuple("Metrics",
+Diff = namedtuple("Diff",
+    ("inc", "par", "mis", "spu"))
+
+Delta = namedtuple("Delta", ("attribute", "predicted", "expected"))
+
+MetricsTuple = namedtuple("MetricsTuple",
     ("cor", "inc", "par", "mis", "spu", "pre", "rec", "f1"))
 
 Hierarchy = namedtuple("Hierarchy", ("lv1", "lv2", "lv3"))
@@ -81,8 +88,201 @@ def calc_diff(truth, config, node_attrs, edge_attrs):
 
 
 ###############################################################################
-# GED Node Cost Functions
+# Comparison Functions
 ###############################################################################
+
+class Metrics(object):
+    __slots__ = ("cor", "inc", "par", "mis", "spu")
+
+    def __init__(self):
+        self.cor = 0
+        self.inc = 0
+        self.par = 0
+        self.mis = 0
+        self.spu = 0
+
+    @property
+    def n(self):
+        return self.cor + self.inc + self.par + self.mis + self.spu
+
+    @property
+    def pos(self):
+        return self.cor + self.inc + self.par + self.mis
+
+    @property
+    def act(self):
+        return self.cor + self.inc + self.par + self.spu
+
+    @property
+    def precision(self):
+        return (self.cor + 0.5 * self.par) / self.act
+
+    @property
+    def recall(self):
+        return (self.cor + 0.5 * self.par) / self.pos
+
+    @property
+    def f1(self):
+        p = self.precision
+        r = self.recall
+        return 2 * p * r / (p + r)
+
+    def as_tuple(self):
+        return MetricsTuple(self.cor, self.inc, self.par, self.mis, self.spu,
+            self.precision, self.recall, self.f1)
+
+
+class PerformanceEvaluator(object):
+    node_attrs = ("args", "conditions")
+
+    param_attrs = ("value", "conditions")
+
+    pub_attrs = ("original_name", "queue_size", "latched", "conditions")
+
+    sub_attrs = ("original_name", "queue_size", "conditions")
+
+    cli_attrs = ("original_name", "conditions")
+
+    srv_attrs = ("original_name", "conditions")
+
+    setter_attrs = ("original_name", "value", "conditions")
+
+    getter_attrs = ("original_name", "value", "conditions")
+
+
+    def __init__(self):
+        self.weights = {}
+
+
+    def eval_performance(self, match_data):
+        self._node_perf(match_data.nodes)
+        self._param_perf(match_data.parameters)
+        self._pub_perf(match_data.publishers)
+        self._sub_perf(match_data.subscribers)
+        self._cli_perf(match_data.clients)
+        self._srv_perf(match_data.servers)
+        self._set_perf(match_data.setters)
+        self._get_perf(match_data.getters)
+
+    def _perf(self, M, attrs):
+        self._reset()
+        self._count_missing(M, attrs)
+        self._count_spurious(M, attrs)
+        for u, v in M.matches:
+            if u.rosname == v.rosname:
+                self._count_cor_rosname(u, v, attrs)
+            elif "?" in u.rosname and rosname_match(u.rosname, v.rosname):
+                self._count_par_rosname(u, v, attrs)
+            else:
+                self._count_inc_rosname(u, v, attrs)
+
+    def _reset(self):
+        self.span_lv1 = Metrics()
+        self.span_lv2 = Metrics()
+        self.span_lv3 = Metrics()
+        self.attr_lv1 = Metrics()
+        self.attr_lv2 = Metrics()
+        self.attr_lv3 = Metrics()
+
+    def _count_missing(self, M, attrs):
+        if M.missing:
+            self.span_lv1.mis += 1
+            self.span_lv2.mis += 1
+            self.span_lv3.mis += 1
+            self.attr_lv1.mis += len(M.missing)
+            self.attr_lv2.mis += len(M.missing) * 2
+            self.attr_lv3.mis += len(M.missing) * (len(attrs) + 2)
+
+    def _count_spurious(self, M, attrs):
+        if M.spurious:
+            self.span_lv1.spu += 1
+            self.span_lv2.spu += 1
+            self.span_lv3.spu += 1
+            self.attr_lv1.spu += len(M.missing)
+            self.attr_lv2.spu += len(M.missing) * 2
+            self.attr_lv3.spu += len(M.missing) * (len(attrs) + 2)
+
+    def _count_cor_rosname(self, u, v, attrs):
+        self.attr_lv1.cor += 1
+        self.attr_lv2.cor += 1
+        self.attr_lv3.cor += 1
+        self.span_lv1.cor += 1
+        if u.rostype == v.rostype:
+            self.attr_lv2.cor += 1
+            self.attr_lv3.cor += 1
+            self.span_lv2.cor += 1
+        else:
+            self.attr_lv2.inc += 1
+            self.attr_lv3.inc += 1
+            self.span_lv2.par += 1
+        for attr in attrs:
+            
+
+    def _count_par_rosname(self, u, v, attrs):
+        self.attr_lv1.par += 1
+        self.attr_lv2.par += 1
+        self.attr_lv3.par += 1
+        self.span_lv1.par += 1
+        self.span_lv2.par += 1
+        if u.rostype == v.rostype:
+            self.attr_lv2.cor += 1
+            self.attr_lv3.cor += 1
+        else:
+            self.attr_lv2.inc += 1
+            self.attr_lv3.inc += 1
+
+    def _count_inc_rosname(self, u, v, attrs):
+        self.attr_lv1.inc += 1
+        self.attr_lv2.inc += 1
+        self.attr_lv3.inc += 1
+        self.span_lv1.inc += 1
+        self.span_lv2.inc += 1
+        self.span_lv3.inc += 1
+        if u.rostype == v.rostype:
+            self.attr_lv2.cor += 1
+            self.attr_lv3.cor += 1
+        else:
+            self.attr_lv2.inc += 1
+            self.attr_lv3.inc += 1
+
+    def _count_secondary_attrs(self, u, v):
+        pass
+
+
+class NodePerformanceEvaluator(PerformanceEvaluator):
+    def _count_secondary_attrs(self, u, v):
+        pass
+
+class ParamPerformanceEvaluator(PerformanceEvaluator):
+    def _count_secondary_attrs(self, u, v):
+        pass
+
+class PubPerformanceEvaluator(PerformanceEvaluator):
+    def _count_secondary_attrs(self, u, v):
+        pass
+
+class SubPerformanceEvaluator(PerformanceEvaluator):
+    def _count_secondary_attrs(self, u, v):
+        pass
+
+class ClientPerformanceEvaluator(PerformanceEvaluator):
+    def _count_secondary_attrs(self, u, v):
+        pass
+
+class ServerPerformanceEvaluator(PerformanceEvaluator):
+    def _count_secondary_attrs(self, u, v):
+        pass
+
+class SetterPerformanceEvaluator(PerformanceEvaluator):
+    def _count_secondary_attrs(self, u, v):
+        pass
+
+class GetterPerformanceEvaluator(PerformanceEvaluator):
+    def _count_secondary_attrs(self, u, v):
+        pass
+
+
+
 
 # node_subst_cost(G1.nodes[n1], G2.nodes[n2])
 # node_del_cost(G1.nodes[n1])
