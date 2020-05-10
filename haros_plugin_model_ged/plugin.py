@@ -85,8 +85,8 @@ from builtins import range
 
 from timeit import default_timer as timer
 
-from .graph_diff import GraphDiffCalculator
-from .output_format import perf_report_html
+from .graph_diff import calc_performance
+from .output_format import perf_report_html, write_latex
 
 ###############################################################################
 # Plugin Entry Point
@@ -113,10 +113,8 @@ def configuration_analysis(iface, config):
     iface.report_metric("f1", report.overall.lv3.f1)
     iface.report_runtime_violation("reportPerformance",
         perf_report_html(report, setup_time))
-    write_txt("ged-output.txt", Gt, Gp, paths, diff,
-        setup_time=setup_time, ged0_time=ged0_time,
-        ged1_time=ged1_time, ged2_time=ged2_time)
-    iface.export_file("ged-output.txt")
+    write_latex("perf-metrics.tex", report)
+    iface.export_file("perf-metrics.tex")
 
 
 ###############################################################################

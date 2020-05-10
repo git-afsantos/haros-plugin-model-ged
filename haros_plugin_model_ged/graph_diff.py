@@ -193,11 +193,17 @@ class Metrics(object):
 
     @property
     def precision(self):
-        return (self.cor + 0.5 * self.par) / self.act
+        act = self.act
+        if act == 0.0:
+            return 1.0
+        return (self.cor + 0.5 * self.par) / act
 
     @property
     def recall(self):
-        return (self.cor + 0.5 * self.par) / self.pos
+        pos = self.pos
+        if pos == 0.0:
+            return 1.0
+        return (self.cor + 0.5 * self.par) / pos
 
     @property
     def f1(self):
@@ -242,7 +248,7 @@ class PerformanceEvaluator(object):
         self.attr_lv3 = Metrics()
         self.diffs = []
 
-    def _count_missing(self, M, attrs):
+    def _count_missing(self, M):
         if M.missing:
             # rosname, rostype, traceability, conditions, secondary
             n = 4 + len(self.snd_attrs)
@@ -250,7 +256,7 @@ class PerformanceEvaluator(object):
             self.attr_lv2.mis += len(M.missing) * 2
             self.attr_lv3.mis += len(M.missing) * n
 
-    def _count_spurious(self, M, attrs):
+    def _count_spurious(self, M):
         if M.spurious:
             # rosname, rostype, traceability, conditions, secondary
             n = 4 + len(self.snd_attrs)

@@ -30,7 +30,8 @@ from collections import namedtuple
 import re
 
 import networkx as nx
-from networkx.algorithms import bipartite
+
+from .nx_patch import minimum_weight_full_matching
 
 
 ###############################################################################
@@ -148,6 +149,12 @@ def link_matching(M_nodes, attr, cost_function):
 
 
 def _matching(lhs, rhs, cost_function):
+    if lhs and not rhs:
+        return Matching([], [], list(lhs))
+    if rhs and not lhs:
+        return Matching([], list(rhs), [])
+    if not lhs and not rhs:
+        return Matching([], [], [])
     G = nx.Graph()
     top = []
     for v in rhs:
@@ -158,7 +165,7 @@ def _matching(lhs, rhs, cost_function):
         for v in rhs:
             weight = cost_function(u, v)
             G.add_edge(u.key, v.key, weight=weight)
-    M = bipartite.matching.minimum_weight_full_matching(G, top_nodes=top)
+    M = minimum_weight_full_matching(G, top_nodes=top)
     # The matching is returned as a dictionary such that
     #   M[u] == v if node u is matched to node v.
     # Unmatched nodes do not occur as a key.
@@ -293,37 +300,37 @@ def convert_haros_param(param):
 def convert_haros_pub(link):
     traceability = convert_haros_location(link.source_location)
     conditions = convert_haros_conditions(link.conditions)
-    return PubAttrs(id(link), link.node.id, link.topic.id, link.type,
+    return PubAttrs(id(link), link.topic.id, link.type,
         traceability, link.rosname.full, link.queue_size, False, conditions)
 
 def convert_haros_sub(link):
     traceability = convert_haros_location(link.source_location)
     conditions = convert_haros_conditions(link.conditions)
-    return SubAttrs(id(link), link.node.id, link.topic.id, link.type,
+    return SubAttrs(id(link), link.topic.id, link.type,
         traceability, link.rosname.full, link.queue_size, conditions)
 
 def convert_haros_cli(link):
     traceability = convert_haros_location(link.source_location)
     conditions = convert_haros_conditions(link.conditions)
-    return CliAttrs(id(link), link.node.id, link.service.id, link.type,
+    return CliAttrs(id(link), link.service.id, link.type,
         traceability, link.rosname.full, conditions)
 
 def convert_haros_srv(link):
     traceability = convert_haros_location(link.source_location)
     conditions = convert_haros_conditions(link.conditions)
-    return SrvAttrs(id(link), link.node.id, link.service.id, link.type,
+    return SrvAttrs(id(link), link.service.id, link.type,
         traceability, link.rosname.full, conditions)
 
 def convert_haros_setter(link):
     traceability = convert_haros_location(link.source_location)
     conditions = convert_haros_conditions(link.conditions)
-    return SetAttrs(id(link), link.node.id, link.parameter.id, link.type,
+    return SetAttrs(id(link), link.parameter.id, link.type,
         traceability, link.rosname.full, None, conditions)
 
 def convert_haros_getter(link):
     traceability = convert_haros_location(link.source_location)
     conditions = convert_haros_conditions(link.conditions)
-    return GetAttrs(id(link), link.node.id, link.parameter.id, link.type,
+    return GetAttrs(id(link), link.parameter.id, link.type,
         traceability, link.rosname.full, None, conditions)
 
 
@@ -415,7 +422,7 @@ def convert_truth_setter(link):
     original_name = link.get("rosname", rosname)
     value = link.get("value")
     conditions = convert_truth_conditions(link.get("conditions", ()))
-    r.append(SetAttrs(id(link), rosname, rostype, traceability,
+    return SetAttrs(id(link), rosname, rostype, traceability,
         original_name, value, conditions)
 
 def convert_truth_getter(link):
@@ -425,7 +432,7 @@ def convert_truth_getter(link):
     original_name = link.get("rosname", rosname)
     value = link.get("default_value")
     conditions = convert_truth_conditions(link.get("conditions", ()))
-    r.append(GetAttrs(id(link), rosname, rostype, traceability,
+    return GetAttrs(id(link), rosname, rostype, traceability,
         original_name, value, conditions)
 
 

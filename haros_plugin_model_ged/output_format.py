@@ -31,80 +31,39 @@ from cgi import escape
 # HTML Formatting
 ###############################################################################
 
-def diff_to_html(diff):
-    parts = []
-    if diff.missed_nodes or diff.missed_edges:
-        parts.append("<p>Missing:")
-        parts.append("<ul>")
-        for ntype, nid in diff.missed_nodes:
-            name = nid.split("]")[-1]
-            parts.append('<li>{} "{}"</li>'.format(ntype, name))
-        for etype, nid1, nid2 in diff.missed_edges:
-            name1 = nid1.split("]")[-1]
-            name2 = nid2.split("]")[-1]
-            parts.append('<li>{} "{}" &#8594; "{}"</li>'.format(
-                etype, name1, name2))
-        parts.append("</ul></p>")
-    if diff.spurious_nodes or diff.spurious_edges:
-        parts.append("<p>Spurious:")
-        parts.append("<ul>")
-        for ntype, nid in diff.spurious_nodes:
-            name = nid.split("]")[-1]
-            parts.append('<li>{} "{}"</li>'.format(ntype, name))
-        for etype, nid1, nid2 in diff.spurious_edges:
-            name1 = nid1.split("]")[-1]
-            name2 = nid2.split("]")[-1]
-            parts.append('<li>{} "{}" &#8594; "{}"</li>'.format(
-                etype, name1, name2))
-        parts.append("</ul></p>")
-    if diff.partial_nodes or diff.partial_edges:
-        parts.append("<p>Partial Match:")
-        parts.append("<ul>")
-        for ntype, nid1, nid2, deltas in diff.partial_nodes:
-            name = nid1.split("]")[-1]
-            parts.append('<li>{} "{}" [{}]</li>'.format(
-                ntype, name, delta_html(deltas)))
-        for etype, nid1, nid2, nid3, nid4, deltas in diff.partial_edges:
-            name1 = nid1.split("]")[-1]
-            name2 = nid2.split("]")[-1]
-            parts.append('<li>{} "{}" &#8594; "{}" [{}]</li>'.format(
-                etype, name1, name2, delta_html(deltas)))
-        parts.append("</ul></p>")
-    return "\n".join(parts)
-
-
-def delta_html(deltas):
-    parts = []
-    for d in deltas:
-        parts.append((
-            '<i>{}:</i> '
-            '<span class="code">{}</span>'
-            ' should be '
-            '<span class="code">{}</span>').format(
-                d[0], escape(str(d[2])), escape(str(d[1]))))
-    return "; ".join(parts)
-
-
-def perf_report_html(r, setup_time):
+def perf_report_html(report, setup_time):
     parts = []
     parts.append("<p>Setup time: {} seconds</p>".format(setup_time))
-    parts.append("<p>Matching time: {} seconds</p>".format(r.match_time))
-    parts.append("<p>Report time: {} seconds</p>".format(r.report_time))
-    parts.append(HTML_TABLE_TOP)
-    parts.append(HTML_TABLE_ROW1.format("Overall", r.overall))
-    parts.append(HTML_TABLE_ROW2.format("Launch", r.by.launch))
-    parts.append(HTML_TABLE_ROW1.format("Source", r.by.source))
-    parts.append(HTML_TABLE_ROW2.format("Node", r.by.node))
-    parts.append(HTML_TABLE_ROW1.format("Parameter", r.by.parameter))
-    parts.append(HTML_TABLE_ROW2.format("Publisher", r.by.publisher))
-    parts.append(HTML_TABLE_ROW1.format("Subscriber", r.by.subscriber))
-    parts.append(HTML_TABLE_ROW2.format("Client", r.by.client))
-    parts.append(HTML_TABLE_ROW1.format("Server", r.by.server))
-    parts.append(HTML_TABLE_ROW2.format("Setter", r.by.setter))
-    parts.append(HTML_TABLE_ROW1.format("Getter", r.by.getter))
-    parts.append("</tbody>\n</table>")
+    parts.append("<p>Matching time: {} seconds</p>".format(report.match_time))
+    parts.append("<p>Report time: {} seconds</p>".format(report.report_time))
+    _perf_report_html_metrics(report, parts)
+    _perf_report_html_table(report, parts)
+    _perf_report_html_diffs(report, parts)
     return "\n".join(parts)
 
+
+def _perf_report_html_metrics(report, parts):
+    p = "<p>Number of {}s: {} ({} COR, {} INC, {} PAR, {} MIS, {} SPU)</p>"
+    for attr in ("node", "parameter", "publisher", "subscriber",
+                 "client", "server", "setter", "getter"):
+        r = getattr(report.by, attr).lv1
+        n = r.cor + r.inc + r.par + r.mis
+        parts.append(p.format(attr, n, r.cor, r.inc, r.par, r.mis, r.spu))
+
+def _perf_report_html_table(report, parts):
+    parts.append(HTML_TABLE_TOP)
+    parts.append(HTML_TABLE_ROW1.format("Overall", report.overall))
+    parts.append(HTML_TABLE_ROW2.format("Launch", report.by.launch))
+    parts.append(HTML_TABLE_ROW1.format("Source", report.by.source))
+    parts.append(HTML_TABLE_ROW2.format("Node", report.by.node))
+    parts.append(HTML_TABLE_ROW1.format("Parameter", report.by.parameter))
+    parts.append(HTML_TABLE_ROW2.format("Publisher", report.by.publisher))
+    parts.append(HTML_TABLE_ROW1.format("Subscriber", report.by.subscriber))
+    parts.append(HTML_TABLE_ROW2.format("Client", report.by.client))
+    parts.append(HTML_TABLE_ROW1.format("Server", report.by.server))
+    parts.append(HTML_TABLE_ROW2.format("Setter", report.by.setter))
+    parts.append(HTML_TABLE_ROW1.format("Getter", report.by.getter))
+    parts.append("</tbody>\n</table>")
 
 
 HTML_TABLE_TOP = \
@@ -175,108 +134,78 @@ HTML_TABLE_ROW2 = \
   </tr>"""
 
 
+def _perf_report_html_diffs(report, parts):
+    parts.append("<p>Attribute diffs:")
+    parts.append("<ul>")
+    for attr in ("node", "parameter", "publisher", "subscriber",
+                 "client", "server", "setter", "getter"):
+        diffs = getattr(report.by, attr).diffs
+        for diff in diffs:
+            p = diff.p_value
+            g = diff.g_value
+            if p is None:
+                li = ('<li>{} "{}" [missing <i>{}:</i>'
+                      ' should be <span class="code">{}</span>]</li>')
+                parts.append(li.format(diff.resource_type, diff.rosname,
+                    diff.attribute, escape(str(g))))
+            elif g is None:
+                li = ('<li>{} "{}" [spurious <i>{}:</i> '
+                      '<span class="code">{}</span>]</li>')
+                parts.append(li.format(diff.resource_type, diff.rosname,
+                    diff.attribute, escape(str(p))))
+            else:
+                li = ('<li>{} "{}" [<i>{}:</i> <span class="code">{}</span>'
+                      ' should be <span class="code">{}</span>]</li>')
+                parts.append(li.format(diff.resource_type, diff.rosname,
+                    diff.attribute, escape(str(p)), escape(str(g))))
+    parts.append("</ul></p>")
+
+
 ###############################################################################
 # Text Formatting
 ###############################################################################
 
-def write_txt(fname, truth, model, paths, diff, setup_time=None, ged0_time=None,
-              ged1_time=None, ged2_time=None):
+def write_latex(fname, report):
+    parts = [LATEX_TABLE_TOP]
+    parts.append(LATEX_TABLE_ROW.format("Overall", report.overall))
+    parts.append(LATEX_TABLE_ROW.format("Launch", report.by.launch))
+    parts.append(LATEX_TABLE_ROW.format("Source", report.by.source))
+    parts.append(LATEX_TABLE_ROW.format("Node", report.by.node))
+    parts.append(LATEX_TABLE_ROW.format("Parameter", report.by.parameter))
+    parts.append(LATEX_TABLE_ROW.format("Publisher", report.by.publisher))
+    parts.append(LATEX_TABLE_ROW.format("Subscriber", report.by.subscriber))
+    parts.append(LATEX_TABLE_ROW.format("Client", report.by.client))
+    parts.append(LATEX_TABLE_ROW.format("Server", report.by.server))
+    parts.append(LATEX_TABLE_ROW.format("Setter", report.by.setter))
+    parts.append(LATEX_TABLE_ROW.format("Getter", report.by.getter))
+    parts.append(LATEX_TABLE_BOT)
     with open(fname, "w") as f:
-        f.write("{}\n".format("\n".join([
-            "---- TIMES ----",
-            "setup time: {}".format(setup_time),
-            "GED0 time: {}".format(ged0_time),
-            "GED1 time: {}".format(ged1_time),
-            "GED2 time: {}".format(ged2_time),
-            "---- TRUTH NODES ----",
-            str(truth.nodes.values()),
-            "---- TRUTH EDGES ----",
-            str(truth.edges.values()),
-            "---- MODEL NODES ----",
-            str(model.nodes.values()),
-            "---- MODEL EDGES ----",
-            str(model.edges.values()),
-            "---- EDIT PATHS ----",
-            format_edit_paths(paths),
-            "---- GRAPH DIFF ----",
-            format_diff(diff)
-        ])))
+        f.write("".join(parts))
 
 
-def format_edit_paths(paths):
-    if not paths:
-        return "nil"
-    parts = []
-    for node_list, edge_list in paths:
-        parts.extend(format_node_list(node_list))
-        parts.extend(format_edge_list(edge_list))
-    return "\n".join(parts)
-
-def format_node_list(node_list):
-    parts = []
-    for u, v in node_list:
-        if u is None:
-            parts.append("insert('{}')".format(v))
-        elif v is None:
-            parts.append("remove('{}')".format(u))
-        else:
-            parts.append("subst('{}', '{}')".format(u, v))
-    return parts
-
-def format_edge_list(edge_list):
-    parts = []
-    for a, b in edge_list:
-        if a is None:
-            parts.append("insert('{} -> {}')".format(b[0], b[1]))
-        elif b is None:
-            parts.append("remove('{} -> {}')".format(a[0], a[1]))
-        else:
-            parts.append("subst('{} -> {}', '{} -> {}')".format(
-                a[0], a[1], b[0], b[1]))
-    return parts
-
-def format_diff(diff):
-    parts = []
-    for item in diff.missed_nodes:
-        parts.append("missing{}".format(item))
-    for item in diff.missed_edges:
-        parts.append("missing{}".format(item))
-    for item in diff.spurious_nodes:
-        parts.append("fantasy{}".format(item))
-    for item in diff.spurious_edges:
-        parts.append("fantasy{}".format(item))
-    for item in diff.partial_nodes:
-        parts.append("partial{}".format(item))
-    for item in diff.partial_edges:
-        parts.append("partial{}".format(item))
-    return "\n".join(parts)
-
-
-
-
-LATEX_TABLE_TOP = """
+LATEX_TABLE_TOP = r"""
 \begin{table}[]
-\begin{tabular}{rlllllllll}
-\multicolumn{1}{c}{} & \multicolumn{3}{c}{\textbf{Level 1}}
+\begin{tabular}{rccccccccc}
+ & \multicolumn{3}{c}{\textbf{Level 1}}
 & \multicolumn{3}{c}{\textbf{Level 2}}
 & \multicolumn{3}{c}{\textbf{Level 3}} \\
-\multicolumn{1}{l}{} & \multicolumn{1}{c}{\textit{Precision}}
-& \multicolumn{1}{c}{\textit{Recall}}
-& \multicolumn{1}{c}{\textit{F1-score}}
-& \multicolumn{1}{c}{\textit{Precision}}
-& \multicolumn{1}{c}{\textit{Recall}}
-& \multicolumn{1}{c}{\textit{F1-score}}
-& \multicolumn{1}{c}{\textit{Precision}}
-& \multicolumn{1}{c}{\textit{Recall}}
-& \multicolumn{1}{c}{\textit{F1-score}} \\
+ & \textit{Precision}
+& \textit{Recall}
+& \textit{F1-score}
+& \textit{Precision}
+& \textit{Recall}
+& \textit{F1-score}
+& \textit{Precision}
+& \textit{Recall}
+& \textit{F1-score} \\
 """
 
-LATEX_TABLE_BOT = """
+LATEX_TABLE_BOT = r"""
 \end{tabular}
 \end{table}
 """
 
-LATEX_TABLE_ROW = """
+LATEX_TABLE_ROW = r"""
 \textit{{{0}}} & {1.lv1.pre} & {1.lv1.rec} & {1.lv1.f1}
 & {1.lv2.pre} & {1.lv2.rec} & {1.lv2.f1}
 & {1.lv3.pre} & {1.lv3.rec} & {1.lv3.f1} \\
