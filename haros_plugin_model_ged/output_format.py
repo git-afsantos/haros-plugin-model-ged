@@ -85,6 +85,96 @@ def delta_html(deltas):
     return "; ".join(parts)
 
 
+def perf_report_html(r, setup_time):
+    parts = []
+    parts.append("<p>Setup time: {} seconds</p>".format(setup_time))
+    parts.append("<p>Matching time: {} seconds</p>".format(r.match_time))
+    parts.append("<p>Report time: {} seconds</p>".format(r.report_time))
+    parts.append(HTML_TABLE_TOP)
+    parts.append(HTML_TABLE_ROW1.format("Overall", r.overall))
+    parts.append(HTML_TABLE_ROW2.format("Launch", r.by.launch))
+    parts.append(HTML_TABLE_ROW1.format("Source", r.by.source))
+    parts.append(HTML_TABLE_ROW2.format("Node", r.by.node))
+    parts.append(HTML_TABLE_ROW1.format("Parameter", r.by.parameter))
+    parts.append(HTML_TABLE_ROW2.format("Publisher", r.by.publisher))
+    parts.append(HTML_TABLE_ROW1.format("Subscriber", r.by.subscriber))
+    parts.append(HTML_TABLE_ROW2.format("Client", r.by.client))
+    parts.append(HTML_TABLE_ROW1.format("Server", r.by.server))
+    parts.append(HTML_TABLE_ROW2.format("Setter", r.by.setter))
+    parts.append(HTML_TABLE_ROW1.format("Getter", r.by.getter))
+    parts.append("</tbody>\n</table>")
+    return "\n".join(parts)
+
+
+
+HTML_TABLE_TOP = \
+"""<style type="text/css">
+.tg  {border-collapse:collapse;border-color:#ccc;border-spacing:0;border-style:solid;border-width:1px;}
+.tg td{background-color:#fff;border-color:#ccc;border-style:solid;border-width:0px;color:#333;
+  font-family:Arial, sans-serif;font-size:14px;overflow:hidden;padding:10px 5px;word-break:normal;}
+.tg th{background-color:#f0f0f0;border-color:#ccc;border-style:solid;border-width:0px;color:#333;
+  font-family:Arial, sans-serif;font-size:14px;font-weight:normal;overflow:hidden;padding:10px 5px;word-break:normal;}
+.tg .tg-baqh{text-align:center;vertical-align:top}
+.tg .tg-buh4{background-color:#f9f9f9;text-align:left;vertical-align:top}
+.tg .tg-h2gs{background-color:#f9f9f9;font-style:italic;text-align:right;vertical-align:top}
+.tg .tg-lqy6{text-align:right;vertical-align:top}
+.tg .tg-amwm{font-weight:bold;text-align:center;vertical-align:top}
+.tg .tg-ps8l{background-color:#f9f9f9;font-style:italic;text-align:center;vertical-align:top}
+.tg .tg-ufyb{font-style:italic;text-align:right;vertical-align:top}
+.tg .tg-0lax{text-align:left;vertical-align:top}
+</style>
+<table class="tg">
+<thead>
+  <tr>
+    <th class="tg-baqh"></th>
+    <th class="tg-amwm" colspan="3">Level 1</th>
+    <th class="tg-amwm" colspan="3">Level 2</th>
+    <th class="tg-amwm" colspan="3">Level 3</th>
+  </tr>
+</thead>
+<tbody>
+  <tr>
+    <td class="tg-buh4"></td>
+    <td class="tg-ps8l">Precision</td>
+    <td class="tg-ps8l">Recall</td>
+    <td class="tg-ps8l">F1-score</td>
+    <td class="tg-ps8l">Precision</td>
+    <td class="tg-ps8l">Recall</td>
+    <td class="tg-ps8l">F1-score</td>
+    <td class="tg-ps8l">Precision</td>
+    <td class="tg-ps8l">Recall</td>
+    <td class="tg-ps8l">F1-score</td>
+  </tr>"""
+
+HTML_TABLE_ROW1 = \
+"""  <tr>
+    <td class="tg-ufyb">{0}</td>
+    <td class="tg-0lax">{1.lv1.pre}</td>
+    <td class="tg-0lax">{1.lv1.rec}</td>
+    <td class="tg-0lax">{1.lv1.f1}</td>
+    <td class="tg-0lax">{1.lv2.pre}<br></td>
+    <td class="tg-0lax">{1.lv2.rec}</td>
+    <td class="tg-0lax">{1.lv2.f1}</td>
+    <td class="tg-0lax">{1.lv3.pre}</td>
+    <td class="tg-0lax">{1.lv3.rec}</td>
+    <td class="tg-0lax">{1.lv3.f1}</td>
+  </tr>"""
+
+HTML_TABLE_ROW2 = \
+"""  <tr>
+    <td class="tg-h2gs">{0}</td>
+    <td class="tg-buh4">{1.lv1.pre}</td>
+    <td class="tg-buh4">{1.lv1.rec}</td>
+    <td class="tg-buh4">{1.lv1.f1}</td>
+    <td class="tg-buh4">{1.lv2.pre}<br></td>
+    <td class="tg-buh4">{1.lv2.rec}</td>
+    <td class="tg-buh4">{1.lv2.f1}</td>
+    <td class="tg-buh4">{1.lv3.pre}</td>
+    <td class="tg-buh4">{1.lv3.rec}</td>
+    <td class="tg-buh4">{1.lv3.f1}</td>
+  </tr>"""
+
+
 ###############################################################################
 # Text Formatting
 ###############################################################################
@@ -160,3 +250,34 @@ def format_diff(diff):
     for item in diff.partial_edges:
         parts.append("partial{}".format(item))
     return "\n".join(parts)
+
+
+
+
+LATEX_TABLE_TOP = """
+\begin{table}[]
+\begin{tabular}{rlllllllll}
+\multicolumn{1}{c}{} & \multicolumn{3}{c}{\textbf{Level 1}}
+& \multicolumn{3}{c}{\textbf{Level 2}}
+& \multicolumn{3}{c}{\textbf{Level 3}} \\
+\multicolumn{1}{l}{} & \multicolumn{1}{c}{\textit{Precision}}
+& \multicolumn{1}{c}{\textit{Recall}}
+& \multicolumn{1}{c}{\textit{F1-score}}
+& \multicolumn{1}{c}{\textit{Precision}}
+& \multicolumn{1}{c}{\textit{Recall}}
+& \multicolumn{1}{c}{\textit{F1-score}}
+& \multicolumn{1}{c}{\textit{Precision}}
+& \multicolumn{1}{c}{\textit{Recall}}
+& \multicolumn{1}{c}{\textit{F1-score}} \\
+"""
+
+LATEX_TABLE_BOT = """
+\end{tabular}
+\end{table}
+"""
+
+LATEX_TABLE_ROW = """
+\textit{{{0}}} & {1.lv1.pre} & {1.lv1.rec} & {1.lv1.f1}
+& {1.lv2.pre} & {1.lv2.rec} & {1.lv2.f1}
+& {1.lv3.pre} & {1.lv3.rec} & {1.lv3.f1} \\
+"""

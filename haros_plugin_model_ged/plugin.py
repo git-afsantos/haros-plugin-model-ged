@@ -85,9 +85,8 @@ from builtins import range
 
 from timeit import default_timer as timer
 
-from .ged import calc_edit_paths, diff_from_paths, sizeof_graph
-from .haros2nx import config_to_nx, truth_to_nx
-from .output_format import diff_to_html, write_txt
+from .graph_diff import GraphDiffCalculator
+from .output_format import perf_report_html
 
 ###############################################################################
 # Plugin Entry Point
@@ -100,37 +99,20 @@ def configuration_analysis(iface, config):
     truth = attr.get("truth")
     if truth is None:
         return
-    # ---- SETUP PHASE ---------------------------------------------------------
+    # ---- SETUP PHASE --------------------------------------------------------
     start_time = timer()
     base = new_base()
     build_base(base, attr.get("imports", ()), iface)
     update_base(base, truth)
-    Gt = truth_to_nx(base)
-    Gp = config_to_nx(config)
     end_time = timer()
     setup_time = end_time - start_time
-    # ---- GED0 PHASE ----------------------------------------------------------
-    start_time = timer()
-    paths, s_ged = calc_edit_paths(Gt, Gp, lvl=0)
-    end_time = timer()
-    ged0_time = end_time - start_time
-    # ---- GED1 PHASE ----------------------------------------------------------
-    start_time = timer()
-    paths, m_ged = calc_edit_paths(Gt, Gp, lvl=1)
-    end_time = timer()
-    ged1_time = end_time - start_time
-    # ---- GED2 PHASE ----------------------------------------------------------
-    start_time = timer()
-    paths, f_ged = calc_edit_paths(Gt, Gp, lvl=2)
-    end_time = timer()
-    ged2_time = end_time - start_time
-    # ---- REPORTING PHASE -----------------------------------------------------
-    iface.report_metric("simpleGED", s_ged)
-    iface.report_metric("midGED", m_ged)
-    iface.report_metric("fullGED", f_ged)
-    diff = diff_from_paths(paths, Gt, Gp)
-    details = issue(s_ged, m_ged, f_ged, Gt, diff)
-    iface.report_runtime_violation("reportGED", details)
+    # ---- REPORT PHASE -------------------------------------------------------
+    report = calc_performance(config, base)
+    iface.report_metric("precision", report.overall.lv3.pre)
+    iface.report_metric("recall", report.overall.lv3.rec)
+    iface.report_metric("f1", report.overall.lv3.f1)
+    iface.report_runtime_violation("reportPerformance",
+        perf_report_html(report, setup_time))
     write_txt("ged-output.txt", Gt, Gp, paths, diff,
         setup_time=setup_time, ged0_time=ged0_time,
         ged1_time=ged1_time, ged2_time=ged2_time)
@@ -155,24 +137,3 @@ def build_base(base, config_names, iface):
 def update_base(base, truth):
     base["nodes"].update(truth.get("nodes", {}))
     base["parameters"].update(truth.get("parameters", {}))
-
-
-def issue(s_ged, m_ged, f_ged, G, diff):
-    n_nodes = len(G.nodes)
-    n_edges = len(G.edges)
-    n = n_nodes + n_edges
-    t = sizeof_graph(G)
-    err_s = s_ged / t
-    err_m = m_ged / t
-    err_f = f_ged / t
-    return (
-        "<p>Graph Item Count: {}</p>\n"
-        "<p>Graph Node Count: {}</p>\n"
-        "<p>Graph Edge Count: {}</p>\n"
-        "<p>Atomic Attribute Count: {}</p>\n"
-        "<p>Minimal Graph Edit Distance: {} ({} error rate)</p>\n"
-        "<p>Basic Graph Edit Distance: {} ({} error rate)</p>\n"
-        "<p>Extended Graph Edit Distance: {} ({} error rate)</p>\n"
-        "{}"
-    ).format(n, n_nodes, n_edges, t,
-        s_ged, err_s, m_ged, err_m, f_ged, err_f, diff_to_html(diff))

@@ -33,7 +33,33 @@ rules:
             - metrics
             - custom
             - models
+    reportPerformance:
+        name: Model Extraction Performance
+        scope: configuration
+        description: "[INFO] Performance for HAROS Configuration extraction"
+        tags:
+            - metrics
+            - custom
+            - models
 metrics:
+    precision:
+        name: Graph Precision
+        scope: configuration
+        description: "Precision for HAROS Configuration extraction"
+        minimum: 0.0
+        maximum: 1.0
+    recall:
+        name: Graph Recall
+        scope: configuration
+        description: "Recall for HAROS Configuration extraction"
+        minimum: 0.0
+        maximum: 1.0
+    f1:
+        name: Graph F1-score
+        scope: configuration
+        description: "F1-score for HAROS Configuration extraction"
+        minimum: 0.0
+        maximum: 1.0
     simpleGED:
         name: Minimal Graph Edit Distance
         scope: configuration
