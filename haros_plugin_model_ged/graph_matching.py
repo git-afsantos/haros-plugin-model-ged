@@ -369,7 +369,7 @@ def convert_truth_node(rosname, data):
         pubs, subs, clients, servers, setters, getters)
 
 def convert_truth_param(rosname, data):
-    rostype = data.get("default_type")
+    rostype = data.get("param_type")
     traceability = convert_truth_traceability(data["traceability"])
     value = data.get("default_value")
     conditions = convert_truth_conditions(data.get("conditions", ()))

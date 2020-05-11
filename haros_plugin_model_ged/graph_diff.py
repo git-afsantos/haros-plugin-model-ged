@@ -255,6 +255,8 @@ class PerformanceEvaluator(object):
             self.attr_lv1.mis += len(M.missing)
             self.attr_lv2.mis += len(M.missing) * 2
             self.attr_lv3.mis += len(M.missing) * n
+            for v in M.missing:
+                self._diff(v.rosname, self.resource_type, None, v)
 
     def _count_spurious(self, M):
         if M.spurious:
@@ -263,6 +265,8 @@ class PerformanceEvaluator(object):
             self.attr_lv1.spu += len(M.missing)
             self.attr_lv2.spu += len(M.missing) * 2
             self.attr_lv3.spu += len(M.missing) * n
+            for u in M.spurious:
+                self._diff(u.rosname, self.resource_type, u, None)
 
     def _count_rosname(self, u, v):
         if u.rosname == v.rosname:

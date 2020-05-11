@@ -43,7 +43,7 @@ def perf_report_html(report, setup_time):
 
 
 def _perf_report_html_metrics(report, parts):
-    p = "<p>Number of {}s (Lv.1): {} ({} COR, {} INC, {} PAR, {} MIS, {} SPU)</p>"
+    p = "<p>[Lv.1] Number of {}s: {} ({} COR, {} INC, {} PAR, {} MIS, {} SPU)</p>"
     for attr in ("node", "parameter", "publisher", "subscriber",
                  "client", "server", "setter", "getter"):
         r = getattr(report.by, attr).lv1
