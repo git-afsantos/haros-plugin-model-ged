@@ -43,7 +43,7 @@ def perf_report_html(report, setup_time):
 
 
 def _perf_report_html_metrics(report, parts):
-    p = "<p>Number of {}s: {} ({} COR, {} INC, {} PAR, {} MIS, {} SPU)</p>"
+    p = "<p>Number of {}s (Lv.1): {} ({} COR, {} INC, {} PAR, {} MIS, {} SPU)</p>"
     for attr in ("node", "parameter", "publisher", "subscriber",
                  "client", "server", "setter", "getter"):
         r = getattr(report.by, attr).lv1
@@ -52,18 +52,37 @@ def _perf_report_html_metrics(report, parts):
 
 def _perf_report_html_table(report, parts):
     parts.append(HTML_TABLE_TOP)
-    parts.append(HTML_TABLE_ROW1.format("Overall", report.overall))
-    parts.append(HTML_TABLE_ROW2.format("Launch", report.by.launch))
-    parts.append(HTML_TABLE_ROW1.format("Source", report.by.source))
-    parts.append(HTML_TABLE_ROW2.format("Node", report.by.node))
-    parts.append(HTML_TABLE_ROW1.format("Parameter", report.by.parameter))
-    parts.append(HTML_TABLE_ROW2.format("Publisher", report.by.publisher))
-    parts.append(HTML_TABLE_ROW1.format("Subscriber", report.by.subscriber))
-    parts.append(HTML_TABLE_ROW2.format("Client", report.by.client))
-    parts.append(HTML_TABLE_ROW1.format("Server", report.by.server))
-    parts.append(HTML_TABLE_ROW2.format("Setter", report.by.setter))
-    parts.append(HTML_TABLE_ROW1.format("Getter", report.by.getter))
+    _html_table_row("Overall", report.overall, False, parts)
+    _html_table_row("Launch", report.by.launch, True, parts)
+    _html_table_row("Source", report.by.source, False, parts)
+    _html_table_row("Node", report.by.node, True, parts)
+    _html_table_row("Parameter", report.by.parameter, False, parts)
+    _html_table_row("Publisher", report.by.publisher, True, parts)
+    _html_table_row("Subscriber", report.by.subscriber, False, parts)
+    _html_table_row("Client", report.by.client, True, parts)
+    _html_table_row("Server", report.by.server, False, parts)
+    _html_table_row("Setter", report.by.setter, True, parts)
+    _html_table_row("Getter", report.by.getter, False, parts)
     parts.append("</tbody>\n</table>")
+
+def _html_table_row(name, r, shadow, parts):
+    temp = HTML_TABLE_ROW2 if shadow else HTML_TABLE_ROW1
+    values = [
+        r.lv1.pre, r.lv1.rec, r.lv1.f1,
+        r.lv2.pre, r.lv2.rec, r.lv2.f1,
+        r.lv3.pre, r.lv3.rec, r.lv3.f1
+    ]
+    values = map(_html_colorize, values)
+    parts.append(temp.format(name, values))
+
+def _html_colorize(value):
+    if value <= 0.5:
+        return ("-red", "{:.4f}".format(value))
+    if value <= 0.8:
+        return ("-yellow", "{:.4f}".format(value))
+    if value < 1.0:
+        return ("-green", "{:.4f}".format(value))
+    return ("", "{:.4f}".format(value))
 
 
 HTML_TABLE_TOP = \
@@ -74,13 +93,19 @@ HTML_TABLE_TOP = \
 .tg th{background-color:#f0f0f0;border-color:#ccc;border-style:solid;border-width:0px;color:#333;
   font-family:Arial, sans-serif;font-size:14px;font-weight:normal;overflow:hidden;padding:10px 5px;word-break:normal;}
 .tg .tg-baqh{text-align:center;vertical-align:top}
-.tg .tg-buh4{background-color:#f9f9f9;text-align:left;vertical-align:top}
+.tg .tg-buh4{background-color:#f9f9f9;text-align:center;vertical-align:top}
+.tg .tg-buh4-red{background-color:#f9f9f9;text-align:center;vertical-align:top;color:#cb4335}
+.tg .tg-buh4-yellow{background-color:#f9f9f9;text-align:center;vertical-align:top;color:#f39c12}
+.tg .tg-buh4-green{background-color:#f9f9f9;text-align:center;vertical-align:top;color:#229954}
 .tg .tg-h2gs{background-color:#f9f9f9;font-style:italic;text-align:right;vertical-align:top}
 .tg .tg-lqy6{text-align:right;vertical-align:top}
 .tg .tg-amwm{font-weight:bold;text-align:center;vertical-align:top}
 .tg .tg-ps8l{background-color:#f9f9f9;font-style:italic;text-align:center;vertical-align:top}
 .tg .tg-ufyb{font-style:italic;text-align:right;vertical-align:top}
-.tg .tg-0lax{text-align:left;vertical-align:top}
+.tg .tg-0lax{text-align:center;vertical-align:top}
+.tg .tg-0lax-red{text-align:center;vertical-align:top;color:#cb4335}
+.tg .tg-0lax-yellow{text-align:center;vertical-align:top;color:#f39c12}
+.tg .tg-0lax-green{text-align:center;vertical-align:top;color:#229954}
 </style>
 <table class="tg">
 <thead>
@@ -108,29 +133,29 @@ HTML_TABLE_TOP = \
 HTML_TABLE_ROW1 = \
 """  <tr>
     <td class="tg-ufyb">{0}</td>
-    <td class="tg-0lax">{1.lv1.pre}</td>
-    <td class="tg-0lax">{1.lv1.rec}</td>
-    <td class="tg-0lax">{1.lv1.f1}</td>
-    <td class="tg-0lax">{1.lv2.pre}<br></td>
-    <td class="tg-0lax">{1.lv2.rec}</td>
-    <td class="tg-0lax">{1.lv2.f1}</td>
-    <td class="tg-0lax">{1.lv3.pre}</td>
-    <td class="tg-0lax">{1.lv3.rec}</td>
-    <td class="tg-0lax">{1.lv3.f1}</td>
+    <td class="tg-0lax{1[0][0]}">{1[0][1]}</td>
+    <td class="tg-0lax{1[1][0]}">{1[1][1]}</td>
+    <td class="tg-0lax{1[2][0]}">{1[2][1]}</td>
+    <td class="tg-0lax{1[3][0]}">{1[3][1]}</td>
+    <td class="tg-0lax{1[4][0]}">{1[4][1]}</td>
+    <td class="tg-0lax{1[5][0]}">{1[5][1]}</td>
+    <td class="tg-0lax{1[6][0]}">{1[6][1]}</td>
+    <td class="tg-0lax{1[7][0]}">{1[7][1]}</td>
+    <td class="tg-0lax{1[8][0]}">{1[8][1]}</td>
   </tr>"""
 
 HTML_TABLE_ROW2 = \
 """  <tr>
     <td class="tg-h2gs">{0}</td>
-    <td class="tg-buh4">{1.lv1.pre}</td>
-    <td class="tg-buh4">{1.lv1.rec}</td>
-    <td class="tg-buh4">{1.lv1.f1}</td>
-    <td class="tg-buh4">{1.lv2.pre}<br></td>
-    <td class="tg-buh4">{1.lv2.rec}</td>
-    <td class="tg-buh4">{1.lv2.f1}</td>
-    <td class="tg-buh4">{1.lv3.pre}</td>
-    <td class="tg-buh4">{1.lv3.rec}</td>
-    <td class="tg-buh4">{1.lv3.f1}</td>
+    <td class="tg-buh4{1[0][0]}">{1[0][1]}</td>
+    <td class="tg-buh4{1[1][0]}">{1[1][1]}</td>
+    <td class="tg-buh4{1[2][0]}">{1[2][1]}</td>
+    <td class="tg-buh4{1[3][0]}">{1[3][1]}</td>
+    <td class="tg-buh4{1[4][0]}">{1[4][1]}</td>
+    <td class="tg-buh4{1[5][0]}">{1[5][1]}</td>
+    <td class="tg-buh4{1[6][0]}">{1[6][1]}</td>
+    <td class="tg-buh4{1[7][0]}">{1[7][1]}</td>
+    <td class="tg-buh4{1[8][0]}">{1[8][1]}</td>
   </tr>"""
 
 
@@ -206,7 +231,7 @@ LATEX_TABLE_BOT = r"""
 """
 
 LATEX_TABLE_ROW = r"""
-\textit{{{0}}} & {1.lv1.pre} & {1.lv1.rec} & {1.lv1.f1}
-& {1.lv2.pre} & {1.lv2.rec} & {1.lv2.f1}
-& {1.lv3.pre} & {1.lv3.rec} & {1.lv3.f1} \\
+\textit{{{0}}} & {1.lv1.pre:.3f} & {1.lv1.rec:.3f} & {1.lv1.f1:.3f}
+& {1.lv2.pre:.3f} & {1.lv2.rec:.3f} & {1.lv2.f1:.3f}
+& {1.lv3.pre:.3f} & {1.lv3.rec:.3f} & {1.lv3.f1:.3f} \\
 """

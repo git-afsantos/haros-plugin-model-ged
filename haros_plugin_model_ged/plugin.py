@@ -113,8 +113,9 @@ def configuration_analysis(iface, config):
     iface.report_metric("f1", report.overall.lv3.f1)
     iface.report_runtime_violation("reportPerformance",
         perf_report_html(report, setup_time))
-    write_latex("perf-metrics.tex", report)
-    iface.export_file("perf-metrics.tex")
+    fname = "perf-metrics-{}.tex".format(config.name)
+    write_latex(fname, report)
+    iface.export_file(fname)
 
 
 ###############################################################################
