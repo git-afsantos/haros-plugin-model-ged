@@ -102,7 +102,7 @@ def configuration_analysis(iface, config):
     # ---- SETUP PHASE --------------------------------------------------------
     start_time = timer()
     base = new_base()
-    build_base(base, attr.get("imports", ()), iface)
+    build_base(base, attr.get("import", ()), iface)
     update_base(base, truth)
     end_time = timer()
     setup_time = end_time - start_time
