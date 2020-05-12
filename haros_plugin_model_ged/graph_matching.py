@@ -325,13 +325,13 @@ def convert_haros_setter(link):
     traceability = convert_haros_location(link.source_location)
     conditions = convert_haros_conditions(link.conditions)
     return SetAttrs(id(link), link.parameter.id, link.type,
-        traceability, link.rosname.full, None, conditions)
+        traceability, link.rosname.full, link.value, conditions)
 
 def convert_haros_getter(link):
     traceability = convert_haros_location(link.source_location)
     conditions = convert_haros_conditions(link.conditions)
     return GetAttrs(id(link), link.parameter.id, link.type,
-        traceability, link.rosname.full, None, conditions)
+        traceability, link.rosname.full, link.value, conditions)
 
 
 def convert_haros_location(loc):

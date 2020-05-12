@@ -168,14 +168,15 @@ def _perf_report_html_diffs(report, parts):
         for diff in diffs:
             p = diff.p_value
             g = diff.g_value
-            if p is None:
-                li = '<li>Missing {} "{}" <span class="code">{}</span></li>'
-                parts.append(li.format(diff.resource_type, diff.rosname,
-                    escape(str(g))))
-            elif g is None:
-                li = '<li>Spurious {} "{}" <span class="code">{}</span></li>'
-                parts.append(li.format(diff.resource_type, diff.rosname,
-                    escape(str(p))))
+            if diff.attribute == "*":
+                if p is None:
+                    li = '<li>Missing {} "{}" <span class="code">{}</span></li>'
+                    parts.append(li.format(diff.resource_type, diff.rosname,
+                        escape(str(g))))
+                elif g is None:
+                    li = '<li>Spurious {} "{}" <span class="code">{}</span></li>'
+                    parts.append(li.format(diff.resource_type, diff.rosname,
+                        escape(str(p))))
             else:
                 li = ('<li>{} "{}" [<i>{}:</i> <span class="code">{}</span>'
                       ' should be <span class="code">{}</span>]</li>')
