@@ -130,7 +130,7 @@ def build_base(base, config_names, iface):
     for config_name in config_names:
         config = iface.find_configuration(config_name)
         attr = config.user_attributes["haros_plugin_model_ged"]
-        build_base(base, attr.get("imports", ()), iface)
+        build_base(base, attr.get("import", ()), iface)
         update_base(base, attr["truth"])
 
 def update_base(base, truth):

@@ -262,9 +262,9 @@ class PerformanceEvaluator(object):
         if M.spurious:
             # rosname, rostype, traceability, conditions, secondary
             n = 4 + len(self.snd_attrs)
-            self.attr_lv1.spu += len(M.missing)
-            self.attr_lv2.spu += len(M.missing) * 2
-            self.attr_lv3.spu += len(M.missing) * n
+            self.attr_lv1.spu += len(M.spurious)
+            self.attr_lv2.spu += len(M.spurious) * 2
+            self.attr_lv3.spu += len(M.spurious) * n
             for u in M.spurious:
                 self._diff(u.rosname, "*", u, None)
 
