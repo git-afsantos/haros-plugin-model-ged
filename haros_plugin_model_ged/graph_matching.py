@@ -71,7 +71,7 @@ GetAttrs = SetAttrs
 
 
 Guard = namedtuple("Guard",
-    ("package", "file", "line", "column", "statement", "condition"))
+    ("package", "file", "line", "column", "statement"))
 
 Location = namedtuple("Location", ("package", "file", "line", "column"))
 
@@ -343,11 +343,14 @@ def convert_haros_location(loc):
 
 def convert_haros_conditions(conditions):
     cfg = {}
+    cur = cfg
     for condition in conditions:
         loc = convert_haros_location(condition.location)
         g = Guard(loc.package, loc.file, loc.line, loc.column,
-                  condition.statement, condition.condition)
-        cfg[g] = {}
+                  condition.statement)
+        new_cfg = {}
+        cur[g] = new_cfg
+        cur = new_cfg
     return cfg
 
 ###############################################################################
@@ -448,7 +451,7 @@ def convert_truth_conditions(paths):
         r = cfg
         for c in path:
             g = Guard(c["package"], c["file"], c["line"], c["column"],
-                      c["statement"], c["condition"])
+                      c["statement"])
             s = r.get(g)
             if s is None:
                 s = {}

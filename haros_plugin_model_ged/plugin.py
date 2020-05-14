@@ -86,7 +86,7 @@ from builtins import range
 from timeit import default_timer as timer
 
 from .graph_diff import calc_performance
-from .output_format import perf_report_html, write_latex
+from .output_format import perf_report_html, write_latex, write_txt
 
 ###############################################################################
 # Plugin Entry Point
@@ -115,6 +115,9 @@ def configuration_analysis(iface, config):
         perf_report_html(report, setup_time))
     fname = "perf-metrics-{}.tex".format(config.name)
     write_latex(fname, report)
+    iface.export_file(fname)
+    fname = "dump-{}.txt".format(config.name)
+    write_txt(fname, base)
     iface.export_file(fname)
 
 

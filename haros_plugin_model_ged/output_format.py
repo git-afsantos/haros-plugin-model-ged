@@ -189,6 +189,17 @@ def _perf_report_html_diffs(report, parts):
 # Text Formatting
 ###############################################################################
 
+def write_txt(fname, truth):
+    parts = []
+    parts.append("-------- PARAMS --------")
+    for rosname, data in truth.get("parameters", {}).items():
+        parts.append("{!r} {}".format(rosname, data))
+    parts.append("-------- NODES --------")
+    for rosname, data in truth.get("nodes", {}).items():
+        parts.append("{!r} {}".format(rosname, data))
+    with open(fname, "w") as f:
+        f.write("\n".join(parts))
+
 def write_latex(fname, report):
     parts = [LATEX_TABLE_TOP]
     parts.append(LATEX_TABLE_ROW.format("Overall", report.overall))
