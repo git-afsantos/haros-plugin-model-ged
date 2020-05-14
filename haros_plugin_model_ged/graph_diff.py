@@ -76,8 +76,8 @@ class GraphDiffCalculator(object):
         match_time = end_time - start_time
         # ---- REPORT PHASE ---------------------------------------------------
         start_time = timer()
-        agg = self._aggregate_reports()
         res = self._resource_reports(match_data)
+        agg = self._aggregate_reports()
         end_time = timer()
         report_time = end_time - start_time
         # ---- RETURN PHASE ---------------------------------------------------
@@ -85,13 +85,13 @@ class GraphDiffCalculator(object):
 
     def _resource_reports(self, match_data):
         return ResourceReport(
-            self.node_perf.report(match_data.nodes)
-            self.param_perf.report(match_data.parameters)
-            self.pub_perf.report(match_data.publishers)
-            self.sub_perf.report(match_data.subscribers)
-            self.cli_perf.report(match_data.clients)
-            self.srv_perf.report(match_data.servers)
-            self.setter_perf.report(match_data.setters)
+            self.node_perf.report(match_data.nodes),
+            self.param_perf.report(match_data.parameters),
+            self.pub_perf.report(match_data.publishers),
+            self.sub_perf.report(match_data.subscribers),
+            self.cli_perf.report(match_data.clients),
+            self.srv_perf.report(match_data.servers),
+            self.setter_perf.report(match_data.setters),
             self.getter_perf.report(match_data.getters))
 
     def _aggregate_reports(self):
@@ -215,7 +215,7 @@ class PerformanceEvaluator(object):
             self._count_conditions(u, v)
             self._count_secondary_attrs(u, v)
         metrics = {key: m.as_tuple() for key, m in self.metrics.items()}
-        metrics["*"] = self.combined_metrics.as_tuple()
+        metrics["*"] = self.combined_metrics().as_tuple()
         return Report(metrics, self.diffs)
 
     def get_metrics(self, attr):

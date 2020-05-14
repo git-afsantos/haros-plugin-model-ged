@@ -37,7 +37,12 @@ def perf_report_html(report, setup_time):
     parts.append("<p>Matching time: {} seconds</p>".format(report.match_time))
     parts.append("<p>Report time: {} seconds</p>".format(report.report_time))
     _perf_report_html_metrics(report, parts)
-    _perf_report_html_table(report, parts)
+    parts.append(CSS_STYLE)
+    _html_table(report, parts, "All Attributes", "*")
+    _html_table(report, parts, "ROS Name", "rosname")
+    _html_table(report, parts, "ROS Type", "rostype")
+    _html_table(report, parts, "Traceability", "traceability")
+    _html_table(report, parts, "Conditions", "conditions")
     _perf_report_html_diffs(report, parts)
     return "\n".join(parts)
 
@@ -46,33 +51,34 @@ def _perf_report_html_metrics(report, parts):
     p = "<p>[Lv.1] Number of {}s: {} ({} COR, {} INC, {} PAR, {} MIS, {} SPU)</p>"
     for attr in ("node", "parameter", "publisher", "subscriber",
                  "client", "server", "setter", "getter"):
-        r = getattr(report.by, attr).lv1
+        r = getattr(report.resource, attr).metrics["rosname"]
         n = r.cor + r.inc + r.par + r.mis
         parts.append(p.format(attr, n, r.cor, r.inc, r.par, r.mis, r.spu))
 
-def _perf_report_html_table(report, parts):
-    parts.append(HTML_TABLE_TOP)
-    _html_table_row("Overall", report.overall, False, parts)
-    _html_table_row("Launch", report.by.launch, True, parts)
-    _html_table_row("Source", report.by.source, False, parts)
-    _html_table_row("Node", report.by.node, True, parts)
-    _html_table_row("Parameter", report.by.parameter, False, parts)
-    _html_table_row("Publisher", report.by.publisher, True, parts)
-    _html_table_row("Subscriber", report.by.subscriber, False, parts)
-    _html_table_row("Client", report.by.client, True, parts)
-    _html_table_row("Server", report.by.server, False, parts)
-    _html_table_row("Setter", report.by.setter, True, parts)
-    _html_table_row("Getter", report.by.getter, False, parts)
+def _html_table(report, parts, header, attr):
+    parts.append(HTML_TABLE_TOP.format(attr=header))
+    _html_table_row("Overall", report.aggregate.overall[attr], False, parts)
+    _html_table_row("Launch", report.aggregate.launch[attr], True, parts)
+    _html_table_row("Source", report.aggregate.source[attr], False, parts)
+    _html_table_row("Topic Links", report.aggregate.topics[attr], True, parts)
+    _html_table_row("Service Links", report.aggregate.services[attr], False, parts)
+    _html_table_row("Param. Links", report.aggregate.params[attr], True, parts)
+    _html_table_row("Node", report.resource.node.metrics[attr], False, parts)
+    _html_table_row("Parameter", report.resource.parameter.metrics[attr], True, parts)
+    _html_table_row("Publisher", report.resource.publisher.metrics[attr], False, parts)
+    _html_table_row("Subscriber", report.resource.subscriber.metrics[attr], True, parts)
+    _html_table_row("Client", report.resource.client.metrics[attr], False, parts)
+    _html_table_row("Server", report.resource.server.metrics[attr], True, parts)
+    _html_table_row("Setter", report.resource.setter.metrics[attr], False, parts)
+    _html_table_row("Getter", report.resource.getter.metrics[attr], True, parts)
     parts.append("</tbody>\n</table>")
 
 def _html_table_row(name, r, shadow, parts):
     temp = HTML_TABLE_ROW2 if shadow else HTML_TABLE_ROW1
     values = [
-        r.lv1.pre, r.lv1.rec, r.lv1.f1,
-        r.lv2.pre, r.lv2.rec, r.lv2.f1,
-        r.lv3.pre, r.lv3.rec, r.lv3.f1
+        ("", r.cor), ("", r.inc), ("", r.par), ("", r.mis), ("", r.spu),
+        _html_colorize(r.pre), _html_colorize(r.rec), _html_colorize(r.f1)
     ]
-    values = map(_html_colorize, values)
     parts.append(temp.format(name, values))
 
 def _html_colorize(value):
@@ -85,7 +91,7 @@ def _html_colorize(value):
     return ("", "{:.4f}".format(value))
 
 
-HTML_TABLE_TOP = \
+CSS_STYLE = \
 """<style type="text/css">
 .tg  {border-collapse:collapse;border-color:#ccc;border-spacing:0;border-style:solid;border-width:1px;}
 .tg td{background-color:#fff;border-color:#ccc;border-style:solid;border-width:0px;color:#333;
@@ -107,24 +113,24 @@ HTML_TABLE_TOP = \
 .tg .tg-0lax-yellow{text-align:center;vertical-align:top;color:#f39c12}
 .tg .tg-0lax-green{text-align:center;vertical-align:top;color:#229954}
 </style>
+"""
+
+HTML_TABLE_TOP = \
+"""
 <table class="tg">
 <thead>
   <tr>
-    <th class="tg-baqh"></th>
-    <th class="tg-amwm" colspan="3">Level 1</th>
-    <th class="tg-amwm" colspan="3">Level 2</th>
-    <th class="tg-amwm" colspan="3">Level 3</th>
+    <th class="tg-amwm" colspan="9">{attr}</th>
   </tr>
 </thead>
 <tbody>
   <tr>
     <td class="tg-buh4"></td>
-    <td class="tg-ps8l">Precision</td>
-    <td class="tg-ps8l">Recall</td>
-    <td class="tg-ps8l">F1-score</td>
-    <td class="tg-ps8l">Precision</td>
-    <td class="tg-ps8l">Recall</td>
-    <td class="tg-ps8l">F1-score</td>
+    <td class="tg-ps8l">COR</td>
+    <td class="tg-ps8l">INC</td>
+    <td class="tg-ps8l">PAR</td>
+    <td class="tg-ps8l">MIS</td>
+    <td class="tg-ps8l">SPU</td>
     <td class="tg-ps8l">Precision</td>
     <td class="tg-ps8l">Recall</td>
     <td class="tg-ps8l">F1-score</td>
@@ -141,7 +147,6 @@ HTML_TABLE_ROW1 = \
     <td class="tg-0lax{1[5][0]}">{1[5][1]}</td>
     <td class="tg-0lax{1[6][0]}">{1[6][1]}</td>
     <td class="tg-0lax{1[7][0]}">{1[7][1]}</td>
-    <td class="tg-0lax{1[8][0]}">{1[8][1]}</td>
   </tr>"""
 
 HTML_TABLE_ROW2 = \
@@ -155,7 +160,6 @@ HTML_TABLE_ROW2 = \
     <td class="tg-buh4{1[5][0]}">{1[5][1]}</td>
     <td class="tg-buh4{1[6][0]}">{1[6][1]}</td>
     <td class="tg-buh4{1[7][0]}">{1[7][1]}</td>
-    <td class="tg-buh4{1[8][0]}">{1[8][1]}</td>
   </tr>"""
 
 
@@ -164,7 +168,7 @@ def _perf_report_html_diffs(report, parts):
     parts.append("<ul>")
     for attr in ("node", "parameter", "publisher", "subscriber",
                  "client", "server", "setter", "getter"):
-        diffs = getattr(report.by, attr).diffs
+        diffs = getattr(report.resource, attr).diffs
         for diff in diffs:
             p = diff.p_value
             g = diff.g_value
@@ -236,7 +240,7 @@ def _latex_table(report, parts, header, attr):
 LATEX_TABLE_TOP = r"""
 \begin{{table}}[]
 \begin{{tabular}}{{rcccccccc}}
- & \multicolumn{{8}}{{c}}{{\textbf{{ {attr} }}}} \\
+\multicolumn{{9}}{{c}}{{\textbf{{ {attr} }}}} \\
  & \textit{{COR}} & \textit{{INC}} & \textit{{PAR}}
 & \textit{{MIS}} & \textit{{SPU}} & \textit{{Precision}}
 & \textit{{Recall}} & \textit{{F1-score}} \\
