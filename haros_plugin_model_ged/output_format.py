@@ -252,6 +252,6 @@ LATEX_TABLE_BOT = r"""
 """
 
 LATEX_TABLE_ROW = r"""
-\textit{{{0}}} & {1.cor} & {1.inc} & {1.par} & {1.mis} & {1.spu}
-& {1.pre:.3f} & {1.rec:.3f} & {1.f1:.3f} \\
+\textit{{{0}}} & ${1.cor}$ & ${1.inc}$ & ${1.par}$ & ${1.mis}$ & ${1.spu}$
+& ${1.pre:.3f}$ & ${1.rec:.3f}$ & ${1.f1:.3f}$ \\
 """
