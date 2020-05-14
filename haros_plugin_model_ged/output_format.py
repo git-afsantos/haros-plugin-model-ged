@@ -189,7 +189,7 @@ def _perf_report_html_diffs(report, parts):
 # Text Formatting
 ###############################################################################
 
-def write_txt(fname, truth):
+def write_txt(fname, truth, report):
     parts = []
     parts.append("-------- PARAMS --------")
     for rosname, data in truth.get("parameters", {}).items():
@@ -197,42 +197,49 @@ def write_txt(fname, truth):
     parts.append("-------- NODES --------")
     for rosname, data in truth.get("nodes", {}).items():
         parts.append("{!r} {}".format(rosname, data))
+    parts.append("-------- REPORT --------")
+    parts.append(str(report))
     with open(fname, "w") as f:
         f.write("\n".join(parts))
 
 def write_latex(fname, report):
-    parts = [LATEX_TABLE_TOP]
-    parts.append(LATEX_TABLE_ROW.format("Overall", report.overall))
-    parts.append(LATEX_TABLE_ROW.format("Launch", report.by.launch))
-    parts.append(LATEX_TABLE_ROW.format("Source", report.by.source))
-    parts.append(LATEX_TABLE_ROW.format("Node", report.by.node))
-    parts.append(LATEX_TABLE_ROW.format("Parameter", report.by.parameter))
-    parts.append(LATEX_TABLE_ROW.format("Publisher", report.by.publisher))
-    parts.append(LATEX_TABLE_ROW.format("Subscriber", report.by.subscriber))
-    parts.append(LATEX_TABLE_ROW.format("Client", report.by.client))
-    parts.append(LATEX_TABLE_ROW.format("Server", report.by.server))
-    parts.append(LATEX_TABLE_ROW.format("Setter", report.by.setter))
-    parts.append(LATEX_TABLE_ROW.format("Getter", report.by.getter))
-    parts.append(LATEX_TABLE_BOT)
+    parts = []
+    _latex_table(report, parts, "All Attributes", "*")
+    _latex_table(report, parts, "ROS Name", "rosname")
+    _latex_table(report, parts, "ROS Type", "rostype")
+    _latex_table(report, parts, "Traceability", "traceability")
+    _latex_table(report, parts, "Conditions", "conditions")
     with open(fname, "w") as f:
         f.write("".join(parts))
 
 
+def _latex_table(report, parts, header, attr):
+    row = LATEX_TABLE_ROW.format
+    parts.append(LATEX_TABLE_TOP.format(attr=header))
+    parts.append(row("Overall", report.aggregate.overall[attr]))
+    parts.append(row("Launch", report.aggregate.launch[attr]))
+    parts.append(row("Source", report.aggregate.source[attr]))
+    parts.append(row("Topic Links", report.aggregate.topics[attr]))
+    parts.append(row("Service Links", report.aggregate.services[attr]))
+    parts.append(row("Param. Links", report.aggregate.params[attr]))
+    parts.append(row("Node", report.resource.node.metrics[attr]))
+    parts.append(row("Parameter", report.resource.parameter.metrics[attr]))
+    parts.append(row("Publisher", report.resource.publisher.metrics[attr]))
+    parts.append(row("Subscriber", report.resource.subscriber.metrics[attr]))
+    parts.append(row("Client", report.resource.client.metrics[attr]))
+    parts.append(row("Server", report.resource.server.metrics[attr]))
+    parts.append(row("Setter", report.resource.setter.metrics[attr]))
+    parts.append(row("Getter", report.resource.getter.metrics[attr]))
+    parts.append(LATEX_TABLE_BOT)
+
+
 LATEX_TABLE_TOP = r"""
-\begin{table}[]
-\begin{tabular}{rccccccccc}
- & \multicolumn{3}{c}{\textbf{Level 1}}
-& \multicolumn{3}{c}{\textbf{Level 2}}
-& \multicolumn{3}{c}{\textbf{Level 3}} \\
- & \textit{Precision}
-& \textit{Recall}
-& \textit{F1-score}
-& \textit{Precision}
-& \textit{Recall}
-& \textit{F1-score}
-& \textit{Precision}
-& \textit{Recall}
-& \textit{F1-score} \\
+\begin{{table}}[]
+\begin{{tabular}}{{rcccccccc}}
+ & \multicolumn{{8}}{{c}}{{\textbf{{ {attr} }}}} \\
+ & \textit{{COR}} & \textit{{INC}} & \textit{{PAR}}
+& \textit{{MIS}} & \textit{{SPU}} & \textit{{Precision}}
+& \textit{{Recall}} & \textit{{F1-score}} \\
 """
 
 LATEX_TABLE_BOT = r"""
@@ -241,7 +248,6 @@ LATEX_TABLE_BOT = r"""
 """
 
 LATEX_TABLE_ROW = r"""
-\textit{{{0}}} & {1.lv1.pre:.3f} & {1.lv1.rec:.3f} & {1.lv1.f1:.3f}
-& {1.lv2.pre:.3f} & {1.lv2.rec:.3f} & {1.lv2.f1:.3f}
-& {1.lv3.pre:.3f} & {1.lv3.rec:.3f} & {1.lv3.f1:.3f} \\
+\textit{{{0}}} & {1.cor} & {1.inc} & {1.par} & {1.mis} & {1.spu}
+& {1.pre:.3f} & {1.rec:.3f} & {1.f1:.3f} \\
 """

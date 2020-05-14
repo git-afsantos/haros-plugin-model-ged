@@ -25,6 +25,7 @@
 # Imports
 ###############################################################################
 
+from builtins import range
 from collections import namedtuple
 from timeit import default_timer as timer
 
@@ -42,14 +43,18 @@ Diff = namedtuple("Diff",
 MetricsTuple = namedtuple("MetricsTuple",
     ("cor", "inc", "par", "mis", "spu", "pre", "rec", "f1"))
 
-Report = namedtuple("Report", ("lv1", "lv2", "lv3", "diffs"))
+Report = namedtuple("Report", ("metrics", "diffs"))
 
-MultiReport = namedtuple("MultiReport",
-    ("launch", "source", "node", "parameter", "publisher",
-     "subscriber", "client", "server", "setter", "getter"))
+ResourceReport = namedtuple("ResourceReport",
+    ("node", "parameter", "publisher", "subscriber",
+     "client", "server", "setter", "getter"))
+
+# {'*': combined metrics, 'attr': combined attr metrics}
+AggregateReport = namedtuple("AggregateReport",
+    ("overall", "launch", "source", "topics", "services", "params"))
 
 PerformanceReport = namedtuple("PerformanceReport",
-    ("overall", "by", "match_time", "report_time"))
+    ("aggregate", "resource", "match_time", "report_time"))
 
 
 class GraphDiffCalculator(object):
@@ -71,93 +76,62 @@ class GraphDiffCalculator(object):
         match_time = end_time - start_time
         # ---- REPORT PHASE ---------------------------------------------------
         start_time = timer()
-        node_report = self.node_perf.report(match_data.nodes)
-        param_report = self.param_perf.report(match_data.parameters)
-        pub_report = self.pub_perf.report(match_data.publishers)
-        sub_report = self.sub_perf.report(match_data.subscribers)
-        cli_report = self.cli_perf.report(match_data.clients)
-        srv_report = self.srv_perf.report(match_data.servers)
-        setter_report = self.setter_perf.report(match_data.setters)
-        getter_report = self.getter_perf.report(match_data.getters)
+        agg = self._aggregate_reports()
+        res = self._resource_reports(match_data)
         end_time = timer()
         report_time = end_time - start_time
         # ---- RETURN PHASE ---------------------------------------------------
-        return PerformanceReport(self._overall_report(),
-            MultiReport(self._launch_report(), self._source_report(),
-                        node_report, param_report, pub_report, sub_report,
-                        cli_report, srv_report, setter_report, getter_report),
-            match_time,
-            report_time)
+        return PerformanceReport(agg, res, match_time, report_time)
 
-    def _launch_report(self):
-        lv1 = Metrics()
-        lv1.add(self.node_perf.attr_lv1).add(self.param_perf.attr_lv1)
+    def _resource_reports(self, match_data):
+        return ResourceReport(
+            self.node_perf.report(match_data.nodes)
+            self.param_perf.report(match_data.parameters)
+            self.pub_perf.report(match_data.publishers)
+            self.sub_perf.report(match_data.subscribers)
+            self.cli_perf.report(match_data.clients)
+            self.srv_perf.report(match_data.servers)
+            self.setter_perf.report(match_data.setters)
+            self.getter_perf.report(match_data.getters))
 
-        lv2 = Metrics()
-        lv2.add(self.node_perf.attr_lv2).add(self.param_perf.attr_lv2)
+    def _aggregate_reports(self):
+        overall_metrics = self._combined_metrics((
+            self.node_perf, self.param_perf,
+            self.pub_perf, self.sub_perf, self.cli_perf,
+            self.srv_perf, self.setter_perf, self.getter_perf),
+            all_attrs=False)
+        launch_metrics = self._combined_metrics((
+            self.node_perf, self.param_perf),
+            all_attrs=False)
+        source_metrics = self._combined_metrics((
+            self.pub_perf, self.sub_perf, self.cli_perf, self.srv_perf,
+            self.setter_perf, self.getter_perf),
+            all_attrs=False)
+        topic_metrics = self._combined_metrics((
+            self.pub_perf, self.sub_perf))
+        service_metrics = self._combined_metrics((
+            self.cli_perf, self.srv_perf))
+        param_metrics = self._combined_metrics((
+            self.setter_perf, self.getter_perf))
+        return AggregateReport(overall_metrics, launch_metrics, source_metrics,
+            topic_metrics, service_metrics, param_metrics)
 
-        lv3 = Metrics()
-        lv3.add(self.node_perf.attr_lv3).add(self.param_perf.attr_lv3)
-
-        #diffs = list(self.node_perf.diffs)
-        #diffs.extend(self.param_perf.diffs)
-
-        return Report(lv1.as_tuple(), lv2.as_tuple(), lv3.as_tuple(), [])
-
-    def _source_report(self):
-        lv1 = Metrics()
-        lv1.add(self.pub_perf.attr_lv1).add(self.sub_perf.attr_lv1)
-        lv1.add(self.cli_perf.attr_lv1).add(self.srv_perf.attr_lv1)
-        lv1.add(self.setter_perf.attr_lv1).add(self.getter_perf.attr_lv1)
-
-        lv2 = Metrics()
-        lv2.add(self.pub_perf.attr_lv2).add(self.sub_perf.attr_lv2)
-        lv2.add(self.cli_perf.attr_lv2).add(self.srv_perf.attr_lv2)
-        lv2.add(self.setter_perf.attr_lv2).add(self.getter_perf.attr_lv2)
-
-        lv3 = Metrics()
-        lv3.add(self.pub_perf.attr_lv3).add(self.sub_perf.attr_lv3)
-        lv3.add(self.cli_perf.attr_lv3).add(self.srv_perf.attr_lv3)
-        lv3.add(self.setter_perf.attr_lv3).add(self.getter_perf.attr_lv3)
-
-        #diffs = list(self.pub_perf.diffs)
-        #diffs.extend(self.sub_perf.diffs)
-        #diffs.extend(self.cli_perf.diffs)
-        #diffs.extend(self.srv_perf.diffs)
-        #diffs.extend(self.setter_perf.diffs)
-        #diffs.extend(self.getter_perf.diffs)
-
-        return Report(lv1.as_tuple(), lv2.as_tuple(), lv3.as_tuple(), [])
-
-    def _overall_report(self):
-        lv1 = Metrics()
-        lv1.add(self.node_perf.attr_lv1).add(self.param_perf.attr_lv1)
-        lv1.add(self.pub_perf.attr_lv1).add(self.sub_perf.attr_lv1)
-        lv1.add(self.cli_perf.attr_lv1).add(self.srv_perf.attr_lv1)
-        lv1.add(self.setter_perf.attr_lv1).add(self.getter_perf.attr_lv1)
-
-        lv2 = Metrics()
-        lv2.add(self.node_perf.attr_lv2).add(self.param_perf.attr_lv2)
-        lv2.add(self.pub_perf.attr_lv2).add(self.sub_perf.attr_lv2)
-        lv2.add(self.cli_perf.attr_lv2).add(self.srv_perf.attr_lv2)
-        lv2.add(self.setter_perf.attr_lv2).add(self.getter_perf.attr_lv2)
-
-        lv3 = Metrics()
-        lv3.add(self.node_perf.attr_lv3).add(self.param_perf.attr_lv3)
-        lv3.add(self.pub_perf.attr_lv3).add(self.sub_perf.attr_lv3)
-        lv3.add(self.cli_perf.attr_lv3).add(self.srv_perf.attr_lv3)
-        lv3.add(self.setter_perf.attr_lv3).add(self.getter_perf.attr_lv3)
-
-        #diffs = list(self.node_perf.diffs)
-        #diffs.extend(self.param_perf.diffs)
-        #diffs.extend(self.pub_perf.diffs)
-        #diffs.extend(self.sub_perf.diffs)
-        #diffs.extend(self.cli_perf.diffs)
-        #diffs.extend(self.srv_perf.diffs)
-        #diffs.extend(self.setter_perf.diffs)
-        #diffs.extend(self.getter_perf.diffs)
-
-        return Report(lv1.as_tuple(), lv2.as_tuple(), lv3.as_tuple(), [])
+    def _combined_metrics(self, perfs, all_attrs=True):
+        if all_attrs:
+            keys = perfs[0].metrics.keys()
+        else:
+            keys = PerformanceEvaluator.main_attrs
+        r = {}
+        for key in keys:
+            m = Metrics()
+            for perf in perfs:
+                m.add(perf.get_metrics(key))
+            r[key] = m.as_tuple()
+        m = perfs[0].combined_metrics()
+        for i in range(1, len(perfs)):
+            m.add(perfs[i].combined_metrics())
+        r["*"] = m.as_tuple()
+        return r
 
 
 def calc_performance(config, truth):
@@ -225,8 +199,9 @@ class Metrics(object):
 
 
 class PerformanceEvaluator(object):
-    __slots__ = ("attr_lv1", "attr_lv2", "attr_lv3", "diffs")
     resource_type = "Resource"
+    __slots__ = ("metrics", "diffs")
+    main_attrs = ("rosname", "rostype", "traceability", "conditions")
     snd_attrs = ()
 
     def report(self, M):
@@ -237,76 +212,92 @@ class PerformanceEvaluator(object):
             self._count_rosname(u, v)
             self._count_rostype(u, v)
             self._count_traceability(u, v)
-            self._count_secondary_attrs(u, v)
             self._count_conditions(u, v)
-        return Report(self.attr_lv1.as_tuple(), self.attr_lv2.as_tuple(),
-            self.attr_lv3.as_tuple(), self.diffs)
+            self._count_secondary_attrs(u, v)
+        metrics = {key: m.as_tuple() for key, m in self.metrics.items()}
+        metrics["*"] = self.combined_metrics.as_tuple()
+        return Report(metrics, self.diffs)
+
+    def get_metrics(self, attr):
+        m = self.metrics.get(attr)
+        if m is None:
+            return Metrics()
+        return m
+
+    def combined_metrics(self):
+        metrics = Metrics()
+        for m in self.metrics.values():
+            metrics.add(m)
+        return m
 
     def _reset(self):
-        self.attr_lv1 = Metrics()
-        self.attr_lv2 = Metrics()
-        self.attr_lv3 = Metrics()
         self.diffs = []
+        self.metrics = {}
+        for attr in self.main_attrs:
+            self.metrics[attr] = Metrics()
+        for attr in self.snd_attrs:
+            self.metrics[attr] = Metrics()
 
     def _count_missing(self, M):
         if M.missing:
-            # rosname, rostype, traceability, conditions, secondary
-            n = 4 + len(self.snd_attrs)
-            self.attr_lv1.mis += len(M.missing)
-            self.attr_lv2.mis += len(M.missing) * 2
-            self.attr_lv3.mis += len(M.missing) * n
+            for m in self.metrics.values():
+                m.mis += len(M.missing)
             for v in M.missing:
                 self._diff(v.rosname, "*", None, v)
 
     def _count_spurious(self, M):
         if M.spurious:
-            # rosname, rostype, traceability, conditions, secondary
-            n = 4 + len(self.snd_attrs)
-            self.attr_lv1.spu += len(M.spurious)
-            self.attr_lv2.spu += len(M.spurious) * 2
-            self.attr_lv3.spu += len(M.spurious) * n
+            for m in self.metrics.values():
+                m.spu += len(M.spurious)
             for u in M.spurious:
                 self._diff(u.rosname, "*", u, None)
 
     def _count_rosname(self, u, v):
+        m = self.metrics["rosname"]
         if u.rosname == v.rosname:
-            self.attr_lv1.cor += 1
-            self.attr_lv2.cor += 1
-            self.attr_lv3.cor += 1
+            m.cor += 1
         else:
             if "?" in u.rosname and rosname_match(u.rosname, v.rosname):
-                self.attr_lv1.par += 1
-                self.attr_lv2.par += 1
-                self.attr_lv3.par += 1
+                m.par += 1
             else:
-                self.attr_lv1.inc += 1
-                self.attr_lv2.inc += 1
-                self.attr_lv3.inc += 1
+                m.inc += 1
             self._diff(v.rosname, "ROS name", u.rosname, v.rosname)
 
     def _count_rostype(self, u, v):
+        m = self.metrics["rostype"]
         if u.rostype == v.rostype:
-            self.attr_lv2.cor += 1
-            self.attr_lv3.cor += 1
+            m.cor += 1
         else:
-            self.attr_lv2.inc += 1
-            self.attr_lv3.inc += 1
+            m.inc += 1
             self._diff(v.rosname, "ROS type", u.rostype, v.rostype)
 
     def _count_traceability(self, u, v):
-        if u.traceability == v.traceability:
-            self.attr_lv3.cor += 1
+        m = self.metrics["traceability"]
+        p = u.traceability
+        g = v.traceability
+        if p == g:
+            m.cor += 1
         else:
-            self.attr_lv3.inc += 1
-            self._diff(v.rosname, "traceability", u.traceability, v.traceability)
+            m.inc += 1
+            if p.package != g.package:
+                self._diff(v.rosname, "traceability:package",
+                    p.package, g.package)
+            elif p.file != g.file:
+                self._diff(v.rosname, "traceability:file", p.file, g.file)
+            elif p.line != g.line:
+                self._diff(v.rosname, "traceability:line", p.line, g.line)
+            elif p.column != g.column:
+                self._diff(v.rosname, "traceability:column",
+                    p.column, g.column)
 
     def _count_conditions(self, u, v):
+        m = self.metrics["conditions"]
         cfg1 = u.conditions
         cfg2 = v.conditions
         if not cfg1 and cfg2:
-            self.attr_lv3.inc += 1
+            m.inc += 1
         elif cfg1 and not cfg2:
-            self.attr_lv3.inc += 1
+            m.inc += 1
         else:
             n = p = s = 0
             queue = [(cfg1, cfg2)]
@@ -329,69 +320,76 @@ class PerformanceEvaluator(object):
                 queue = new_queue
             if s > 0:
                 if p == n:
-                    self.attr_lv3.spu += 1
+                    m.spu += 1
                 elif p > 0:
-                    self.attr_lv3.par += 1
+                    m.par += 1
                 else:
-                    self.attr_lv3.inc += 1
+                    m.inc += 1
             else:
                 if p == n:
-                    self.attr_lv3.cor += 1
+                    m.cor += 1
                 elif p > 0:
-                    self.attr_lv3.par += 1
+                    m.par += 1
                 else:
-                    self.attr_lv3.mis += 1
+                    m.mis += 1
 
     def _count_secondary_attrs(self, u, v):
         for attr in self.snd_attrs:
-            p = getattr(u, attr)
-            g = getattr(v, attr)
-            if p == g:
-                self.attr_lv3.cor += 1
+            f = "_count_" + attr
+            if hasattr(self, f):
+                getattr(self, f)(u, v)
             else:
-                self.attr_lv3.inc += 1
-                self._diff(v.rosname, attr.replace("_", " "), p, g)
+                self._count_simple_attr(u, v, attr)
+
+    def _count_simple_attr(self, u, v, attr):
+        p = getattr(u, attr)
+        g = getattr(v, attr)
+        if p == g:
+            self.metrics[attr].cor += 1
+        else:
+            self.metrics[attr].inc += 1
+            self._diff(v.rosname, attr.replace("_", " "), p, g)
 
     def _diff(self, rosname, attr, p, g):
         self.diffs.append(Diff(self.resource_type, rosname, attr, p, g))
 
 
 class NodePerformanceEvaluator(PerformanceEvaluator):
-    __slots__ = PerformanceEvaluator.__slots__
-    resource_type = "Node"
     snd_attrs = ("args",)
+    __slots__ = PerformanceEvaluator.__slots__ + snd_attrs
+    resource_type = "Node"
 
 class ParamPerformanceEvaluator(PerformanceEvaluator):
-    __slots__ = PerformanceEvaluator.__slots__
-    resource_type = "Parameter"
     snd_attrs = ("value",)
+    __slots__ = PerformanceEvaluator.__slots__ + snd_attrs
+    resource_type = "Parameter"
 
 class PubPerformanceEvaluator(PerformanceEvaluator):
-    __slots__ = PerformanceEvaluator.__slots__
-    resource_type = "Topic Publisher"
     snd_attrs = ("original_name", "queue_size", "latched",)
+    __slots__ = PerformanceEvaluator.__slots__ + snd_attrs
+    resource_type = "Topic Publisher"
 
 class SubPerformanceEvaluator(PerformanceEvaluator):
-    __slots__ = PerformanceEvaluator.__slots__
-    resource_type = "Topic Subscriber"
     snd_attrs = ("original_name", "queue_size",)
+    __slots__ = PerformanceEvaluator.__slots__ + snd_attrs
+    resource_type = "Topic Subscriber"
 
 class ClientPerformanceEvaluator(PerformanceEvaluator):
-    __slots__ = PerformanceEvaluator.__slots__
-    resource_type = "Service Client"
     snd_attrs = ("original_name",)
+    __slots__ = PerformanceEvaluator.__slots__ + snd_attrs
+    resource_type = "Service Client"
 
 class ServerPerformanceEvaluator(PerformanceEvaluator):
-    __slots__ = PerformanceEvaluator.__slots__
-    resource_type = "Service Server"
     snd_attrs = ("original_name",)
+    __slots__ = PerformanceEvaluator.__slots__ + snd_attrs
+    resource_type = "Service Server"
 
 class SetterPerformanceEvaluator(PerformanceEvaluator):
-    __slots__ = PerformanceEvaluator.__slots__
-    resource_type = "Parameter Setter"
     snd_attrs = ("original_name", "value")
+    __slots__ = PerformanceEvaluator.__slots__ + snd_attrs
+    resource_type = "Parameter Setter"
 
 class GetterPerformanceEvaluator(PerformanceEvaluator):
-    __slots__ = PerformanceEvaluator.__slots__
-    resource_type = "Parameter Getter"
     snd_attrs = ("original_name", "value")
+    __slots__ = PerformanceEvaluator.__slots__ + snd_attrs
+    resource_type = "Parameter Getter"
