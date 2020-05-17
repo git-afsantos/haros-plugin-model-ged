@@ -128,8 +128,10 @@ def node_matching(config_nodes, truth_nodes, cost_function):
 def param_matching(config_params, truth_params, cost_function):
     lhs = [convert_haros_param(param) for param in config_params
            if param.launch is not None]
-    rhs = [convert_truth_param(rosname, data)
-           for rosname, data in truth_params.items()]
+    rhs = []
+    for rosname, data in truth_params.items():
+        for param in convert_truth_params(rosname, data):
+            rhs.append(param)
     return _matching(lhs, rhs, cost_function)
 
 def link_matching(M_nodes, attr, cost_function):
@@ -371,13 +373,16 @@ def convert_truth_node(rosname, data):
     return NodeAttrs(id(data), rosname, rostype, traceability, args, conditions,
         pubs, subs, clients, servers, setters, getters)
 
-def convert_truth_param(rosname, data):
+def convert_truth_params(rosname, data):
     rostype = data.get("param_type")
     traceability = convert_truth_traceability(data["traceability"])
     value = data.get("default_value")
     conditions = convert_truth_conditions(data.get("conditions", ()))
-    return ParamAttrs(id(data), rosname, rostype, traceability, value,
-        conditions)
+    if rostype == "yaml" and isinstance(value, dict) and value:
+        return _unfold_yaml(rosname, traceability, conditions, value)
+    else:
+        return (ParamAttrs(id(data), rosname, rostype, traceability, value,
+            conditions),)
 
 def convert_truth_pub(link):
     rosname = link["topic"]
@@ -493,3 +498,44 @@ def rosname_match(rosname, expected):
         parts.append(rosname[i:])
     parts.append("$")
     return re.match("".join(parts), expected)
+
+
+def _unfold_yaml(rosname, traceability, conditions, data):
+    assert isinstance(data, dict) and len(data) > 0
+    params = []
+    stack = [("", rosname, data)]
+    while stack:
+        ns, key, value = stack.pop()
+        name = _ns_join(key, ns)
+        if not isinstance(value, dict):
+            params.append(ParamAttrs(int(id(params)) + len(params), name,
+                _param_type(value), traceability, value, conditions))
+        else:
+            for key, other in value.items():
+                stack.append((name, key, other))
+    return params
+
+def _ns_join(name, ns):
+    """Dumb version of name resolution to mimic ROS behaviour."""
+    if name.startswith("~") or name.startswith("/"):
+        return name
+    if ns == "~":
+        return "~" + name
+    if not ns:
+        return name
+    if ns[-1] == "/":
+        return ns + name
+    return ns + "/" + name
+
+def _param_type(value):
+    if value is None:
+        return None
+    if value is True or value is False:
+        return "bool"
+    if isinstance(value, (int, long)):
+        return "int"
+    if isinstance(value, float):
+        return "double"
+    if isinstance(value, basestring):
+        return "str"
+    return "yaml"
