@@ -68,12 +68,13 @@ class GraphDiffCalculator(object):
         self.setter_perf = SetterPerformanceEvaluator()
         self.getter_perf = GetterPerformanceEvaluator()
 
-    def report(self, config, truth):
+    def report(self, config, truth, iface):
         # ---- SETUP PHASE ----------------------------------------------------
         start_time = timer()
-        match_data = matching_by_name_type_loc(config, truth)
+        match_data = matching_by_name_type_loc(config, truth, iface)
         end_time = timer()
         match_time = end_time - start_time
+        self._log_match_data(match_data, iface)
         # ---- REPORT PHASE ---------------------------------------------------
         start_time = timer()
         res = self._resource_reports(match_data)
@@ -133,10 +134,22 @@ class GraphDiffCalculator(object):
         r["*"] = m.as_tuple()
         return r
 
+    def _log_match_data(self, match_data, iface):
+        for i in range(len(match_data)):
+            m = match_data[i]
+            t = match_data._fields[i]
+            for u, v in m.matches:
+                iface.log_debug("matched {} {!r} and {!r}".format(
+                    t, u.rosname, v.rosname))
+            for u in m.missing:
+                iface.log_debug("missing {} {!r}".format(t, u.rosname))
+            for u in m.spurious:
+                iface.log_debug("spurious {} {!r}".format(t, u.rosname))
 
-def calc_performance(config, truth):
+
+def calc_performance(config, truth, iface):
     g = GraphDiffCalculator()
-    return g.report(config, truth)
+    return g.report(config, truth, iface)
 
 
 ###############################################################################

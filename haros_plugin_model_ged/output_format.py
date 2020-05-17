@@ -25,6 +25,7 @@
 # Imports
 ###############################################################################
 
+from builtins import range
 from cgi import escape
 
 ###############################################################################
@@ -166,14 +167,20 @@ def _perf_report_html_diffs(report, parts):
             if diff.attribute == "*":
                 if p is None:
                     li = ('<li>Missing {} <span class="rosname">{}</span> '
-                          '<span class="code">{}</span></li>')
+                          '<br>{}</li>')
+                    s = '<span class="code">{}: {}</span>'
+                    spans = [s.format(g._fields[i], escape(str(g[i])))
+                             for i in range(1, len(g))]
                     parts.append(li.format(diff.resource_type, diff.rosname,
-                        escape(str(g))))
+                        "<br>".join(spans)))
                 elif g is None:
                     li = ('<li>Spurious {} <span class="rosname">{}</span> '
-                          '<span class="code">{}</span></li>')
+                          '<br>{}</li>')
+                    s = '<span class="code">{}: {}</span>'
+                    spans = [s.format(p._fields[i], escape(str(p[i])))
+                             for i in range(1, len(p))]
                     parts.append(li.format(diff.resource_type, diff.rosname,
-                        escape(str(p))))
+                        "<br>".join(spans)))
             else:
                 li = ('<li>{} <span class="rosname">{}</span> '
                       '[<i>{}:</i> <span class="code">{}</span>'

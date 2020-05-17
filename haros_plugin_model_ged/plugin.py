@@ -107,7 +107,7 @@ def configuration_analysis(iface, config):
     end_time = timer()
     setup_time = end_time - start_time
     # ---- REPORT PHASE -------------------------------------------------------
-    report = calc_performance(config, base)
+    report = calc_performance(config, base, iface)
     iface.report_metric("precision", report.aggregate.overall["*"].pre)
     iface.report_metric("recall", report.aggregate.overall["*"].rec)
     iface.report_metric("f1", report.aggregate.overall["*"].f1)

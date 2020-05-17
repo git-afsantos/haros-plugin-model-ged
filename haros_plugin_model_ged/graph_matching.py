@@ -35,6 +35,16 @@ from .nx_patch import minimum_weight_full_matching
 
 
 ###############################################################################
+# Globals
+###############################################################################
+
+def _noop(msg):
+    pass
+
+flog = _noop
+
+
+###############################################################################
 # Helper Classes
 ###############################################################################
 
@@ -82,26 +92,31 @@ Matching = namedtuple("Matching", ("matches", "missing", "spurious"))
 # Graph Matching
 ###############################################################################
 
-def matching_by_name(config, truth):
-    return matching_by(config, truth, cost_rosname)
+def matching_by_name(config, truth, iface=None):
+    return matching_by(config, truth, cost_rosname, iface)
 
-def matching_by_name_type(config, truth):
-    return matching_by(config, truth, cost_rosname_rostype)
+def matching_by_name_type(config, truth, iface=None):
+    return matching_by(config, truth, cost_rosname_rostype, iface)
 
-def matching_by_name_type_loc(config, truth):
-    return matching_by(config, truth, cost_rosname_rostype_traceability)
+def matching_by_name_type_loc(config, truth, iface=None):
+    return matching_by(config, truth, cost_rosname_rostype_traceability, iface)
 
-def matching_by_loc(config, truth):
-    return matching_by(config, truth, cost_traceability_main)
+def matching_by_loc(config, truth, iface=None):
+    return matching_by(config, truth, cost_traceability_main, iface)
 
-def matching_by_loc_name(config, truth):
-    return matching_by(config, truth, cost_traceability_rosname)
+def matching_by_loc_name(config, truth, iface=None):
+    return matching_by(config, truth, cost_traceability_rosname, iface)
 
-def matching_by_loc_name_type(config, truth):
-    return matching_by(config, truth, cost_traceability_rosname_rostype)
+def matching_by_loc_name_type(config, truth, iface=None):
+    return matching_by(config, truth, cost_traceability_rosname_rostype, iface)
 
 
-def matching_by(config, truth, cost_function):
+def matching_by(config, truth, cost_function, iface=None):
+    global flog
+    if iface is None:
+        flog = _noop
+    else:
+        flog = iface.log_debug
     M_nodes = node_matching(config.nodes.enabled,
         truth["nodes"], cost_function)
     M_params = param_matching(config.parameters.enabled,
@@ -502,16 +517,19 @@ def rosname_match(rosname, expected):
 
 def _unfold_yaml(rosname, traceability, conditions, data):
     assert isinstance(data, dict) and len(data) > 0
+    flog("unfold yaml for {!r}: {}".format(rosname, data))
     params = []
     stack = [("", rosname, data)]
     while stack:
         ns, key, value = stack.pop()
         name = _ns_join(key, ns)
         if not isinstance(value, dict):
-            params.append(ParamAttrs(int(id(params)) + len(params), name,
+            flog("create inner param {!r}: {!r}".format(name, value))
+            params.append(ParamAttrs(name, name,
                 _param_type(value), traceability, value, conditions))
         else:
             for key, other in value.items():
+                flog("delegate yaml param (ns={!r}, name={!r})".format(name, key))
                 stack.append((name, key, other))
     return params
 
