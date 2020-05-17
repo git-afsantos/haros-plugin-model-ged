@@ -209,6 +209,9 @@ def write_txt(fname, truth, report):
 
 def write_latex(fname, report):
     parts = []
+    parts.append("\definecolor{redvalue}{rgb}{0.8,0.25,0.2}\n")
+    parts.append("\definecolor{yellowvalue}{rgb}{0.95,0.6,0}\n")
+    parts.append("\definecolor{greenvalue}{rgb}{0.13,0.6,0.33}\n")
     _latex_table(report, parts, "All Attributes", "*")
     _latex_table(report, parts, "ROS Name", "rosname")
     _latex_table(report, parts, "ROS Type", "rostype")
@@ -219,23 +222,36 @@ def write_latex(fname, report):
 
 
 def _latex_table(report, parts, header, attr):
-    row = LATEX_TABLE_ROW.format
     parts.append(LATEX_TABLE_TOP.format(attr=header))
-    parts.append(row("Overall", report.aggregate.overall[attr]))
-    parts.append(row("Launch", report.aggregate.launch[attr]))
-    parts.append(row("Source", report.aggregate.source[attr]))
-    parts.append(row("Topic Links", report.aggregate.topics[attr]))
-    parts.append(row("Service Links", report.aggregate.services[attr]))
-    parts.append(row("Param. Links", report.aggregate.params[attr]))
-    parts.append(row("Node", report.resource.node.metrics[attr]))
-    parts.append(row("Parameter", report.resource.parameter.metrics[attr]))
-    parts.append(row("Publisher", report.resource.publisher.metrics[attr]))
-    parts.append(row("Subscriber", report.resource.subscriber.metrics[attr]))
-    parts.append(row("Client", report.resource.client.metrics[attr]))
-    parts.append(row("Server", report.resource.server.metrics[attr]))
-    parts.append(row("Setter", report.resource.setter.metrics[attr]))
-    parts.append(row("Getter", report.resource.getter.metrics[attr]))
+    _latex_row("Overall", report.aggregate.overall[attr], parts)
+    _latex_row("Launch", report.aggregate.launch[attr], parts)
+    _latex_row("Source", report.aggregate.source[attr], parts)
+    _latex_row("Topic Links", report.aggregate.topics[attr], parts)
+    _latex_row("Service Links", report.aggregate.services[attr], parts)
+    _latex_row("Param. Links", report.aggregate.params[attr], parts)
+    _latex_row("Node", report.resource.node.metrics[attr], parts)
+    _latex_row("Parameter", report.resource.parameter.metrics[attr], parts)
+    _latex_row("Publisher", report.resource.publisher.metrics[attr], parts)
+    _latex_row("Subscriber", report.resource.subscriber.metrics[attr], parts)
+    _latex_row("Client", report.resource.client.metrics[attr], parts)
+    _latex_row("Server", report.resource.server.metrics[attr], parts)
+    _latex_row("Setter", report.resource.setter.metrics[attr], parts)
+    _latex_row("Getter", report.resource.getter.metrics[attr], parts)
     parts.append(LATEX_TABLE_BOT)
+
+def _latex_row(name, r, parts):
+    values = [r.cor, r.inc, r.par, r.mis, r.spu,
+        _latex_colorize(r.pre), _latex_colorize(r.rec), _latex_colorize(r.f1)]
+    parts.append(LATEX_TABLE_ROW.format(name, values))
+
+def _latex_colorize(value):
+    if value <= 0.5:
+        return r"{{\color{{redvalue}} {:.3f}}}".format(value)
+    if value <= 0.8:
+        return r"{{\color{{yellowvalue}} {:.3f}}}".format(value)
+    if value < 1.0:
+        return r"{{\color{{greenvalue}} {:.3f}}}".format(value)
+    return "{:.3f}".format(value)
 
 
 LATEX_TABLE_TOP = r"""
@@ -253,6 +269,6 @@ LATEX_TABLE_BOT = r"""
 """
 
 LATEX_TABLE_ROW = r"""
-\textit{{{0}}} & ${1.cor}$ & ${1.inc}$ & ${1.par}$ & ${1.mis}$ & ${1.spu}$
-& ${1.pre:.3f}$ & ${1.rec:.3f}$ & ${1.f1:.3f}$ \\
+\textit{{{0}}} & ${1[0]}$ & ${1[1]}$ & ${1[2]}$ & ${1[3]}$ & ${1[4]}$
+& ${1[5]}$ & ${1[6]}$ & ${1[7]}$ \\
 """
