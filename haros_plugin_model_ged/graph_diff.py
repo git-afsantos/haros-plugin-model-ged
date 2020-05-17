@@ -183,6 +183,8 @@ class Metrics(object):
     def f1(self):
         p = self.precision
         r = self.recall
+        if (p + r) == 0.0:
+            return 0.0
         return 2 * p * r / (p + r)
 
     def as_tuple(self):
