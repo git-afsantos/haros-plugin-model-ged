@@ -36,7 +36,6 @@ def perf_report_html(report, setup_time):
     parts.append("<p>Setup time: {} seconds</p>".format(setup_time))
     parts.append("<p>Matching time: {} seconds</p>".format(report.match_time))
     parts.append("<p>Report time: {} seconds</p>".format(report.report_time))
-    _perf_report_html_metrics(report, parts)
     parts.append(CSS_STYLE)
     _html_table(report, parts, "All Attributes", "*")
     _html_table(report, parts, "ROS Name", "rosname")
@@ -45,15 +44,6 @@ def perf_report_html(report, setup_time):
     _html_table(report, parts, "Conditions", "conditions")
     _perf_report_html_diffs(report, parts)
     return "\n".join(parts)
-
-
-def _perf_report_html_metrics(report, parts):
-    p = "<p>[Lv.1] Number of {}s: {} ({} COR, {} INC, {} PAR, {} MIS, {} SPU)</p>"
-    for attr in ("node", "parameter", "publisher", "subscriber",
-                 "client", "server", "setter", "getter"):
-        r = getattr(report.resource, attr).metrics["rosname"]
-        n = r.cor + r.inc + r.par + r.mis
-        parts.append(p.format(attr, n, r.cor, r.inc, r.par, r.mis, r.spu))
 
 def _html_table(report, parts, header, attr):
     parts.append(HTML_TABLE_TOP.format(attr=header))
