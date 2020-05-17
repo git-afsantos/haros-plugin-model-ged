@@ -318,7 +318,8 @@ def convert_haros_pub(link):
     traceability = convert_haros_location(link.source_location)
     conditions = convert_haros_conditions(link.conditions)
     return PubAttrs(id(link), link.topic.id, link.type,
-        traceability, link.rosname.full, link.queue_size, False, conditions)
+        traceability, link.rosname.full, link.queue_size, link.latched,
+        conditions)
 
 def convert_haros_sub(link):
     traceability = convert_haros_location(link.source_location)
