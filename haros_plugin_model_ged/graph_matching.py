@@ -210,19 +210,29 @@ def _matching(lhs, rhs, cost_function):
 def cost_rosname(u, v):
     if u.rosname == v.rosname:
         return 0
-    if "?" in u.rosname and rosname_match(u.rosname, v.rosname):
+    try:
+        expected = getattr(v, "original_name")
+        alt = v.rosname
+    except AttributeError:
+        expected = v.rosname
+        alt = None
+    if "?" in u.rosname and rosname_match(u.rosname, expected, alt=alt):
+        if u.rosname.count("?") > 1:
+            return 2
         return 1
-    return 2
+    return 3
 
 def cost_rostype(u, v):
     if u.rostype == v.rostype:
         return 0
-    if u.rostype is None or "?" in u.rostype:
-        return 1
-    return 2
+    #if u.rostype is None or "?" in u.rostype:
+    #    return 1
+    #return 2
+    return 1
 
 def cost_rosname_rostype(u, v):
-    return 10 * cost_rosname(u, v) + cost_rostype(u, v)
+    # rostype values in [0, 1]; behave as if in base 2
+    return 2 * cost_rosname(u, v) + cost_rostype(u, v)
 
 def cost_traceability(u, v):
     p = u.traceability
@@ -242,8 +252,9 @@ def cost_traceability(u, v):
     return 0
 
 def cost_rosname_rostype_traceability(u, v):
-    cost = 100 * cost_rosname(u, v)
-    cost = cost + 10 * cost_rostype(u, v)
+    # traceability values in [0, 4]; behave as if in base 5
+    cost = 5 * 5 * cost_rosname(u, v)
+    cost = cost + 5 * cost_rostype(u, v)
     return cost + cost_traceability(u, v)
 
 
@@ -282,12 +293,13 @@ def cost_traceability_main(u, v):
     return 0
 
 def cost_traceability_rosname(u, v):
-    cost = 10 * cost_traceability_main(u, v)
+    # values in [0, 8]; behave as if in base 9
+    cost = 9 * cost_traceability_main(u, v)
     return cost + cost_rosname(u, v)
 
 def cost_traceability_rosname_rostype(u, v):
-    cost = 100 * cost_traceability_main(u, v)
-    cost = cost + 10 * cost_rosname(u, v)
+    cost = 9 * 9 * cost_traceability_main(u, v)
+    cost = cost + 9 * cost_rosname(u, v)
     return cost + cost_rostype(u, v)
 
 
@@ -484,7 +496,7 @@ def convert_truth_conditions(paths):
 # Helper Functions
 ###############################################################################
 
-def rosname_match(rosname, expected):
+def rosname_match(rosname, expected, alt=None):
     parts = []
     prev = "/"
     n = len(rosname)
@@ -513,7 +525,11 @@ def rosname_match(rosname, expected):
     if i < n:
         parts.append(rosname[i:])
     parts.append("$")
-    return re.match("".join(parts), expected)
+    pattern = "".join(parts)
+    m = re.match(pattern, expected)
+    if not m and alt:
+        return re.match(pattern, alt)
+    return m
 
 
 def _unfold_yaml(rosname, traceability, conditions, data):
