@@ -112,6 +112,7 @@ CSS_STYLE = \
 .tg .tg-0lax-red{text-align:center;vertical-align:top;color:#cb4335}
 .tg .tg-0lax-yellow{text-align:center;vertical-align:top;color:#f39c12}
 .tg .tg-0lax-green{text-align:center;vertical-align:top;color:#229954}
+.rosname {font-family: monospace;unicode-bidi: embed;font-weight:bold;color:#229954}
 </style>
 """
 
@@ -174,15 +175,18 @@ def _perf_report_html_diffs(report, parts):
             g = diff.g_value
             if diff.attribute == "*":
                 if p is None:
-                    li = '<li>Missing {} "{}" <span class="code">{}</span></li>'
+                    li = ('<li>Missing {} <span class="rosname">{}</span> '
+                          '<span class="code">{}</span></li>')
                     parts.append(li.format(diff.resource_type, diff.rosname,
                         escape(str(g))))
                 elif g is None:
-                    li = '<li>Spurious {} "{}" <span class="code">{}</span></li>'
+                    li = ('<li>Spurious {} <span class="rosname">{}</span> '
+                          '<span class="code">{}</span></li>')
                     parts.append(li.format(diff.resource_type, diff.rosname,
                         escape(str(p))))
             else:
-                li = ('<li>{} "{}" [<i>{}:</i> <span class="code">{}</span>'
+                li = ('<li>{} <span class="rosname">{}</span> '
+                      '[<i>{}:</i> <span class="code">{}</span>'
                       ' should be <span class="code">{}</span>]</li>')
                 parts.append(li.format(diff.resource_type, diff.rosname,
                     diff.attribute, escape(str(p)), escape(str(g))))
