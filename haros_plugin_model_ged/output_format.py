@@ -32,11 +32,15 @@ from cgi import escape
 # HTML Formatting
 ###############################################################################
 
-def perf_report_html(report, setup_time):
+def perf_report_html(report, setup_time, hc_nodes):
     parts = []
     parts.append("<p>Setup time: {} seconds</p>".format(setup_time))
     parts.append("<p>Matching time: {} seconds</p>".format(report.match_time))
     parts.append("<p>Report time: {} seconds</p>".format(report.report_time))
+    nr = report.resource.node.metrics["rosname"]
+    n = nr.cor + nr.inc + nr.par + nr.mis
+    parts.append("<p>Hard-coded nodes: <b>{}</b> out of <b>{}</b></p>".format(
+        hc_nodes, n))
     parts.append(CSS_STYLE)
     _html_table(report, parts, "All Attributes", "*")
     _html_table(report, parts, "ROS Name", "rosname")

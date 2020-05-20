@@ -108,11 +108,15 @@ def configuration_analysis(iface, config):
     setup_time = end_time - start_time
     # ---- REPORT PHASE -------------------------------------------------------
     report = calc_performance(config, base, iface)
+    hc_nodes = len([n for n in base.get("nodes", {}).values()
+                    if not (n.get("publishers") or n.get("subscribers")
+                            or n.get("clients") or n.get("servers")
+                            or n.get("setters") or n.get("getters"))])
     iface.report_metric("precision", report.aggregate.overall["*"].pre)
     iface.report_metric("recall", report.aggregate.overall["*"].rec)
     iface.report_metric("f1", report.aggregate.overall["*"].f1)
     iface.report_runtime_violation("reportPerformance",
-        perf_report_html(report, setup_time))
+        perf_report_html(report, setup_time, hc_nodes))
     fname = "perf-metrics-{}.tex".format(config.name)
     write_latex(fname, report)
     iface.export_file(fname)
