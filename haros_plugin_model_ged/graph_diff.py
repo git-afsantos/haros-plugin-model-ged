@@ -234,16 +234,16 @@ class PerformanceEvaluator(object):
         return Report(metrics, self.diffs)
 
     def get_metrics(self, attr):
-        m = self.metrics.get(attr)
-        if m is None:
+        metrics = self.metrics.get(attr)
+        if metrics is None:
             return Metrics()
-        return m
+        return metrics
 
     def combined_metrics(self):
         metrics = Metrics()
         for m in self.metrics.values():
             metrics.add(m)
-        return m
+        return metrics
 
     def _reset(self):
         self.diffs = []
@@ -309,44 +309,37 @@ class PerformanceEvaluator(object):
         m = self.metrics["conditions"]
         cfg1 = u.conditions
         cfg2 = v.conditions
-        if not cfg1 and cfg2:
-            m.inc += 1
-        elif cfg1 and not cfg2:
-            m.inc += 1
-        else:
-            n = p = s = 0
-            queue = [(cfg1, cfg2)]
-            while queue:
-                new_queue = []
-                for c1, c2 in queue:
-                    for g, child1 in c1.items():
-                        n += 1
-                        child2 = c2.get(g)
-                        if child2 is None:
-                            self._diff(v.rosname, "condition", g, None)
-                        else:
-                            p += 1
-                            new_queue.append((child1, child2))
-                    for g, child2 in c2.items():
-                        child1 = c1.get(g)
-                        if child1 is None:
-                            s += 1
-                            self._diff(v.rosname, "condition", None, g)
-                queue = new_queue
-            if s > 0:
-                if p == n:
-                    m.spu += 1
-                elif p > 0:
-                    m.par += 1
-                else:
-                    m.inc += 1
+        n = p = s = 0
+        queue = [(cfg1, cfg2)]
+        while queue:
+            new_queue = []
+            for c1, c2 in queue:
+                for g, child1 in c1.items():
+                    child2 = c2.get(g)
+                    if child2 is None:
+                        s += 1
+                        self._diff(v.rosname, "condition", g, None)
+                    else:
+                        p += 1
+                        new_queue.append((child1, child2))
+                for g, child2 in c2.items():
+                    n += 1
+                    child1 = c1.get(g)
+                    if child1 is None:
+                        self._diff(v.rosname, "condition", None, g)
+            queue = new_queue
+        if s > 0:
+            if p == n:
+                m.spu += 1
             else:
-                if p == n:
-                    m.cor += 1
-                elif p > 0:
-                    m.par += 1
-                else:
-                    m.mis += 1
+                m.inc += 1
+        else:
+            if p == n:
+                m.cor += 1
+            elif p > 0:
+                m.par += 1
+            else:
+                m.mis += 1
 
     def _count_secondary_attrs(self, u, v):
         for attr in self.snd_attrs:
@@ -370,9 +363,41 @@ class PerformanceEvaluator(object):
 
 
 class NodePerformanceEvaluator(PerformanceEvaluator):
-    snd_attrs = ("args",)
+    snd_attrs = ("args", "remaps")
     __slots__ = PerformanceEvaluator.__slots__ + snd_attrs
     resource_type = "Node"
+
+    def _count_remaps(self, u, v):
+        m = self.metrics["remaps"]
+        remaps1 = u.remaps
+        remaps2 = v.remaps
+        n = p = s = 0
+        for src, dst in remaps1.items():
+            dst2 = remaps2.get(src)
+            if dst2 is None:
+                s += 1
+                self._diff(v.rosname, "remaps", (src, dst), None)
+            elif dst == dst2:
+                p += 1
+            else:
+                self._diff(v.rosname, "remaps", (src, dst), (src, dst2))
+        for src, dst in remaps2.items():
+            n += 1
+            dst1 = remaps1.get(src)
+            if dst != dst1:
+                self._diff(v.rosname, "remaps", dst1, dst)
+        if s > 0:
+            if p == n:
+                m.spu += 1
+            else:
+                m.inc += 1
+        else:
+            if p == n:
+                m.cor += 1
+            elif p > 0:
+                m.par += 1
+            else:
+                m.mis += 1
 
 class ParamPerformanceEvaluator(PerformanceEvaluator):
     snd_attrs = ("value",)

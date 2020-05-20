@@ -53,7 +53,7 @@ GraphData = namedtuple("GraphData",
      "clients", "servers", "setters", "getters"))
 
 NodeAttrs = namedtuple("NodeAttrs",
-    ("key", "rosname", "rostype", "traceability", "args", "conditions",
+    ("key", "rosname", "rostype", "traceability", "args", "remaps", "conditions",
      "publishers", "subscribers", "clients", "servers", "setters", "getters"))
 
 ParamAttrs = namedtuple("ParamAttrs",
@@ -317,7 +317,7 @@ def convert_haros_node(node):
     setters = [convert_haros_setter(link) for link in node.writes]
     getters = [convert_haros_getter(link) for link in node.reads]
     return NodeAttrs(id(node), node.id, node.type, traceability, node.argv,
-        conditions, pubs, subs, clients, servers, setters, getters)
+        node.remaps, conditions, pubs, subs, clients, servers, setters, getters)
 
 def convert_haros_param(param):
     assert param.launch is not None
@@ -391,6 +391,7 @@ def convert_truth_node(rosname, data):
     rostype = data["node_type"]
     traceability = convert_truth_traceability(data["traceability"])
     args = data.get("args", [])
+    remaps = data.get("remaps", {})
     conditions = convert_truth_conditions(data.get("conditions", ()))
     pubs = [convert_truth_pub(link) for link in data.get("publishers", ())]
     subs = [convert_truth_sub(link) for link in data.get("subscribers", ())]
@@ -398,8 +399,8 @@ def convert_truth_node(rosname, data):
     servers = [convert_truth_srv(link) for link in data.get("servers", ())]
     setters = [convert_truth_setter(link) for link in data.get("setters", ())]
     getters = [convert_truth_getter(link) for link in data.get("getters", ())]
-    return NodeAttrs(id(data), rosname, rostype, traceability, args, conditions,
-        pubs, subs, clients, servers, setters, getters)
+    return NodeAttrs(id(data), rosname, rostype, traceability, args, remaps,
+        conditions, pubs, subs, clients, servers, setters, getters)
 
 def convert_truth_params(rosname, data):
     rostype = data.get("param_type")
