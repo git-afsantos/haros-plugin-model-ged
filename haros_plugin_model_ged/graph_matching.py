@@ -390,7 +390,7 @@ def convert_haros_conditions(conditions):
 def convert_truth_node(rosname, data):
     rostype = data["node_type"]
     traceability = convert_truth_traceability(data["traceability"])
-    args = data.get("args", [])
+    args = data.get("args", "")
     remaps = data.get("remaps", {})
     conditions = convert_truth_conditions(data.get("conditions", ()))
     pubs = [convert_truth_pub(link) for link in data.get("publishers", ())]
