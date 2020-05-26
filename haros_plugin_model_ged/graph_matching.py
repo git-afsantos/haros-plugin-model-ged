@@ -417,7 +417,7 @@ def convert_truth_pub(link):
     rosname = link["topic"]
     rostype = link["msg_type"]
     traceability = convert_truth_traceability(link["traceability"])
-    original_name = link.get("rosname", rosname)
+    original_name = link.get("original_name", rosname)
     queue_size = link["queue_size"]
     latched = link.get("latched", False)
     conditions = convert_truth_conditions(link.get("conditions", ()))
@@ -428,7 +428,7 @@ def convert_truth_sub(link):
     rosname = link["topic"]
     rostype = link["msg_type"]
     traceability = convert_truth_traceability(link["traceability"])
-    original_name = link.get("rosname", rosname)
+    original_name = link.get("original_name", rosname)
     queue_size = link["queue_size"]
     conditions = convert_truth_conditions(link.get("conditions", ()))
     return SubAttrs(id(link), rosname, rostype, traceability,
@@ -438,7 +438,7 @@ def convert_truth_cli(link):
     rosname = link["service"]
     rostype = link["srv_type"]
     traceability = convert_truth_traceability(link["traceability"])
-    original_name = link.get("rosname", rosname)
+    original_name = link.get("original_name", rosname)
     conditions = convert_truth_conditions(link.get("conditions", ()))
     return CliAttrs(id(link), rosname, rostype, traceability,
         original_name, conditions)
@@ -447,7 +447,7 @@ def convert_truth_srv(link):
     rosname = link["service"]
     rostype = link["srv_type"]
     traceability = convert_truth_traceability(link["traceability"])
-    original_name = link.get("rosname", rosname)
+    original_name = link.get("original_name", rosname)
     conditions = convert_truth_conditions(link.get("conditions", ()))
     return SrvAttrs(id(link), rosname, rostype, traceability,
         original_name, conditions)
@@ -456,7 +456,7 @@ def convert_truth_setter(link):
     rosname = link["parameter"]
     rostype = link["param_type"]
     traceability = convert_truth_traceability(link["traceability"])
-    original_name = link.get("rosname", rosname)
+    original_name = link.get("original_name", rosname)
     value = link.get("value")
     conditions = convert_truth_conditions(link.get("conditions", ()))
     return SetAttrs(id(link), rosname, rostype, traceability,
@@ -466,7 +466,7 @@ def convert_truth_getter(link):
     rosname = link["parameter"]
     rostype = link["param_type"]
     traceability = convert_truth_traceability(link["traceability"])
-    original_name = link.get("rosname", rosname)
+    original_name = link.get("original_name", rosname)
     value = link.get("default_value")
     conditions = convert_truth_conditions(link.get("conditions", ()))
     return GetAttrs(id(link), rosname, rostype, traceability,
