@@ -308,7 +308,10 @@ def cost_traceability_rosname_rostype(u, v):
 ###############################################################################
 
 def convert_haros_node(node):
-    traceability = convert_haros_location(node._location)
+    if node._location:
+        traceability = convert_haros_location(node._location)
+    else:
+        traceability = convert_haros_location2(node.location2)
     conditions = convert_haros_conditions(node.conditions)
     pubs = [convert_haros_pub(link) for link in node.publishers]
     subs = [convert_haros_sub(link) for link in node.subscribers]
@@ -321,44 +324,65 @@ def convert_haros_node(node):
 
 def convert_haros_param(param):
     assert param.launch is not None
-    traceability = convert_haros_location(param._location)
+    if param._location:
+        traceability = convert_haros_location(param._location)
+    else:
+        traceability = convert_haros_location2(param.location2)
     conditions = convert_haros_conditions(param.conditions)
     return ParamAttrs(id(param), param.id, param.type, traceability,
         param.value, conditions)
 
 def convert_haros_pub(link):
-    traceability = convert_haros_location(link.source_location)
+    if link.source_location:
+        traceability = convert_haros_location(link.source_location)
+    else:
+        traceability = convert_haros_location2(link.location2)
     conditions = convert_haros_conditions(link.conditions)
     return PubAttrs(id(link), link.topic.id, link.type,
         traceability, link.rosname.full, link.queue_size, link.latched,
         conditions)
 
 def convert_haros_sub(link):
-    traceability = convert_haros_location(link.source_location)
+    if link.source_location:
+        traceability = convert_haros_location(link.source_location)
+    else:
+        traceability = convert_haros_location2(link.location2)
     conditions = convert_haros_conditions(link.conditions)
     return SubAttrs(id(link), link.topic.id, link.type,
         traceability, link.rosname.full, link.queue_size, conditions)
 
 def convert_haros_cli(link):
-    traceability = convert_haros_location(link.source_location)
+    if link.source_location:
+        traceability = convert_haros_location(link.source_location)
+    else:
+        traceability = convert_haros_location2(link.location2)
     conditions = convert_haros_conditions(link.conditions)
     return CliAttrs(id(link), link.service.id, link.type,
         traceability, link.rosname.full, conditions)
 
 def convert_haros_srv(link):
-    traceability = convert_haros_location(link.source_location)
+    if link.source_location:
+        traceability = convert_haros_location(link.source_location)
+    else:
+        traceability = convert_haros_location2(link.location2)
     conditions = convert_haros_conditions(link.conditions)
     return SrvAttrs(id(link), link.service.id, link.type,
         traceability, link.rosname.full, conditions)
 
 def convert_haros_setter(link):
-    traceability = convert_haros_location(link.source_location)
+    if link.source_location:
+        traceability = convert_haros_location(link.source_location)
+    else:
+        traceability = convert_haros_location2(link.location2)
     conditions = convert_haros_conditions(link.conditions)
     return SetAttrs(id(link), link.parameter.id, link.type,
         traceability, link.rosname.full, link.value, conditions)
 
 def convert_haros_getter(link):
-    traceability = convert_haros_location(link.source_location)
+    if link.source_location:
+        traceability = convert_haros_location(link.source_location)
+    else:
+        traceability = convert_haros_location2(link.location2)
     conditions = convert_haros_conditions(link.conditions)
     return GetAttrs(id(link), link.parameter.id, link.type,
         traceability, link.rosname.full, link.value, conditions)
@@ -370,6 +394,9 @@ def convert_haros_location(loc):
     if loc.file is None:
         return Location(loc.package.name, None, None, None)
     return Location(loc.package.name, loc.file.full_name, loc.line, loc.column)
+
+def convert_haros_location2(loc2):
+    return Location(loc2.package, loc2.file, loc2.line, loc2.column)
 
 def convert_haros_conditions(conditions):
     cfg = {}
