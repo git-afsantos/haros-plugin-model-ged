@@ -43,6 +43,8 @@ def _noop(msg):
 
 flog = _noop
 
+INF = float("inf")
+
 
 ###############################################################################
 # Helper Classes
@@ -93,63 +95,66 @@ Matching = namedtuple("Matching", ("matches", "missing", "spurious"))
 ###############################################################################
 
 def matching_by_name(config, truth, iface=None):
-    return matching_by(config, truth, cost_rosname, iface)
+    return matching_by(config, truth, cost_rosname, iface=iface, t=3)
 
 def matching_by_name_type(config, truth, iface=None):
-    return matching_by(config, truth, cost_rosname_rostype, iface)
+    return matching_by(config, truth, cost_rosname_rostype, iface=iface, t=2*3)
 
 def matching_by_name_type_loc(config, truth, iface=None):
-    return matching_by(config, truth, cost_rosname_rostype_traceability, iface)
+    return matching_by(config, truth, cost_rosname_rostype_traceability,
+        iface=iface, t=5*2*3)
 
 def matching_by_loc(config, truth, iface=None):
-    return matching_by(config, truth, cost_traceability_main, iface)
+    return matching_by(config, truth, cost_traceability_main, iface=iface, t=4)
 
 def matching_by_loc_name(config, truth, iface=None):
-    return matching_by(config, truth, cost_traceability_rosname, iface)
+    return matching_by(config, truth, cost_traceability_rosname,
+        iface=iface, t=4*4)
 
 def matching_by_loc_name_type(config, truth, iface=None):
-    return matching_by(config, truth, cost_traceability_rosname_rostype, iface)
+    return matching_by(config, truth, cost_traceability_rosname_rostype,
+        iface=iface, t=4*2*4)
 
 
-def matching_by(config, truth, cost_function, iface=None):
+def matching_by(config, truth, cost_function, iface=None, t=INF):
     global flog
     if iface is None:
         flog = _noop
     else:
         flog = iface.log_debug
     M_nodes = node_matching(config.nodes.enabled,
-        truth["nodes"], cost_function)
+        truth["nodes"], cost_function, t=t)
     M_params = param_matching(config.parameters.enabled,
-        truth["parameters"], cost_function)
+        truth["parameters"], cost_function, t=t)
     return GraphData(M_nodes, M_params,
-        link_matching(M_nodes, "publishers", cost_function),
-        link_matching(M_nodes, "subscribers", cost_function),
-        link_matching(M_nodes, "clients", cost_function),
-        link_matching(M_nodes, "servers", cost_function),
-        link_matching(M_nodes, "setters", cost_function),
-        link_matching(M_nodes, "getters", cost_function))
+        link_matching(M_nodes, "publishers", cost_function, t=t),
+        link_matching(M_nodes, "subscribers", cost_function, t=t),
+        link_matching(M_nodes, "clients", cost_function, t=t),
+        link_matching(M_nodes, "servers", cost_function, t=t),
+        link_matching(M_nodes, "setters", cost_function, t=t),
+        link_matching(M_nodes, "getters", cost_function, t=t))
 
 
 ###############################################################################
 # Matching Functions
 ###############################################################################
 
-def node_matching(config_nodes, truth_nodes, cost_function):
+def node_matching(config_nodes, truth_nodes, cost_function, t=INF):
     lhs = [convert_haros_node(node) for node in config_nodes]
     rhs = [convert_truth_node(rosname, data)
            for rosname, data in truth_nodes.items()]
-    return _matching(lhs, rhs, cost_function)
+    return _matching(lhs, rhs, cost_function, t)
 
-def param_matching(config_params, truth_params, cost_function):
+def param_matching(config_params, truth_params, cost_function, t=INF):
     lhs = [convert_haros_param(param) for param in config_params
            if param.launch is not None]
     rhs = []
     for rosname, data in truth_params.items():
         for param in convert_truth_params(rosname, data):
             rhs.append(param)
-    return _matching(lhs, rhs, cost_function)
+    return _matching(lhs, rhs, cost_function, t)
 
-def link_matching(M_nodes, attr, cost_function):
+def link_matching(M_nodes, attr, cost_function, t=INF):
     M = Matching([], [], [])
     for node in M_nodes.missing:
         M.missing.extend(getattr(node, attr))
@@ -158,14 +163,14 @@ def link_matching(M_nodes, attr, cost_function):
     for node, gold in M_nodes.matches:
         lhs = getattr(node, attr)
         rhs = getattr(gold, attr)
-        m = _matching(lhs, rhs, cost_function)
+        m = _matching(lhs, rhs, cost_function, t)
         M.matches.extend(m.matches)
         M.missing.extend(m.missing)
         M.spurious.extend(m.spurious)
     return M
 
 
-def _matching(lhs, rhs, cost_function):
+def _matching(lhs, rhs, cost_function, t):
     if lhs and not rhs:
         return Matching([], [], list(lhs))
     if rhs and not lhs:
@@ -194,7 +199,13 @@ def _matching(lhs, rhs, cost_function):
         if key is None:
             spurious.append(u)
         else:
-            matched.append((u, G.nodes[key]["data"]))
+            v = G.nodes[key]["data"]
+            weight = G[u.key][key]["weight"]
+            if weight < t:
+                matched.append((u, v))
+            else:
+                missed.append(v)
+                spurious.append(u)
     for v in rhs:
         if v.key not in M:
             missed.append(v)
@@ -253,7 +264,7 @@ def cost_traceability(u, v):
 
 def cost_rosname_rostype_traceability(u, v):
     # traceability values in [0, 4]; behave as if in base 5
-    cost = 5 * 5 * cost_rosname(u, v)
+    cost = 2 * 5 * cost_rosname(u, v)
     cost = cost + 5 * cost_rostype(u, v)
     return cost + cost_traceability(u, v)
 
@@ -293,13 +304,13 @@ def cost_traceability_main(u, v):
     return 0
 
 def cost_traceability_rosname(u, v):
-    # values in [0, 8]; behave as if in base 9
-    cost = 9 * cost_traceability_main(u, v)
+    # values in [0, 3]; behave as if in base 4
+    cost = 4 * cost_traceability_main(u, v)
     return cost + cost_rosname(u, v)
 
 def cost_traceability_rosname_rostype(u, v):
-    cost = 9 * 9 * cost_traceability_main(u, v)
-    cost = cost + 9 * cost_rosname(u, v)
+    cost = 4 * 2 * cost_traceability_main(u, v)
+    cost = cost + 2 * cost_rosname(u, v)
     return cost + cost_rostype(u, v)
 
 
@@ -602,3 +613,45 @@ def _param_type(value):
     if isinstance(value, basestring):
         return "str"
     return "yaml"
+
+###############################################################################
+# Test Functions
+###############################################################################
+
+def _print_name_type_loc_costs(tests):
+    for u, v, desc in tests:
+        print desc, cost_rosname_rostype_traceability(u, v)
+
+if __name__ == "__main__":
+    loc1 = Location("pkg", "file", 1, 1)
+    loc2 = Location("pkg2", "file", 1, 1)
+    loc3 = Location("pkg", "file2", 1, 1)
+    loc4 = Location("pkg", "file", 2, 1)
+    loc5 = Location("pkg", "file", 1, 2)
+    loc6 = Location("pkg", "file", 1, None)
+    loc7 = Location("pkg", "file", None, None)
+    loc8 = Location("pkg", None, None, None)
+    loc9 = Location(None, None, None, None)
+
+    S = namedtuple("MinAttrs", ("rosname", "rostype", "traceability"))
+    s1 = S("/a", "T", loc1)
+
+    TESTS = (
+        (s1, s1, "(-,-,-)"),
+        (S("/a", "T", loc9), s1, "(-,-,?)"),
+        (S("/a", None, loc1), s1, "(-,?,-)"),
+        (S("/a", None, loc9), s1, "(-,?,?)"),
+        (S("/?", "T", loc1), s1, "(?,-,-)"),
+        (S("/?", "T", loc9), s1, "(?,-,?)"),
+        (S("/?", None, loc1), s1, "(?,?,-)"),
+        (S("/?", None, loc9), s1, "(?,?,?)"),
+        (S("/a", "T", loc2), s1, "(-,-,x)"),
+        (S("/a", "X", loc1), s1, "(-,x,-)"),
+        (S("/a", "X", loc2), s1, "(-,x,x)"),
+        (S("/b", "T", loc1), s1, "(x,-,-)"),
+        (S("/b", "T", loc2), s1, "(x,-,x)"),
+        (S("/b", "X", loc9), s1, "(x,x,-)"),
+        (S("/b", "X", loc2), s1, "(x,x,x)"),
+    )
+
+    _print_name_type_loc_costs(TESTS)
