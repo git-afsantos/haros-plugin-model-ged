@@ -36,7 +36,7 @@ extra_files = ["haros_plugin_model_ged/plugin.yaml"]
 
 setup(
     name = "haros_plugin_model_ged",
-    version = "0.1.0",
+    version = "0.2.0",
     author = "André Santos",
     author_email = "andre.f.santos@inesctec.pt",
     description = "Graph Edit Distance of HAROS models.",
