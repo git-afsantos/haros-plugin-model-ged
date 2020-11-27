@@ -25,6 +25,9 @@
 # Imports
 ###############################################################################
 
+from __future__ import division
+from past.utils import old_div
+from builtins import object
 from builtins import range
 from collections import namedtuple
 from timeit import default_timer as timer
@@ -119,7 +122,7 @@ class GraphDiffCalculator(object):
 
     def _combined_metrics(self, perfs, all_attrs=True):
         if all_attrs:
-            keys = perfs[0].metrics.keys()
+            keys = list(perfs[0].metrics.keys())
         else:
             keys = PerformanceEvaluator.main_attrs
         r = {}
@@ -183,14 +186,14 @@ class Metrics(object):
         act = self.act
         if act == 0.0:
             return 1.0
-        return (self.cor + 0.5 * self.par) / act
+        return old_div((self.cor + 0.5 * self.par), act)
 
     @property
     def recall(self):
         pos = self.pos
         if pos == 0.0:
             return 1.0
-        return (self.cor + 0.5 * self.par) / pos
+        return old_div((self.cor + 0.5 * self.par), pos)
 
     @property
     def f1(self):
@@ -198,7 +201,7 @@ class Metrics(object):
         r = self.recall
         if (p + r) == 0.0:
             return 0.0
-        return 2 * p * r / (p + r)
+        return old_div(2 * p * r, (p + r))
 
     def as_tuple(self):
         return MetricsTuple(self.cor, self.inc, self.par, self.mis, self.spu,

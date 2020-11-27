@@ -25,6 +25,8 @@
 # Imports
 ###############################################################################
 
+from __future__ import print_function
+from past.builtins import basestring
 from builtins import range
 from collections import namedtuple
 import re
@@ -606,7 +608,7 @@ def _param_type(value):
         return None
     if value is True or value is False:
         return "bool"
-    if isinstance(value, (int, long)):
+    if isinstance(value, int):
         return "int"
     if isinstance(value, float):
         return "double"
@@ -620,7 +622,7 @@ def _param_type(value):
 
 def _print_name_type_loc_costs(tests):
     for u, v, desc in tests:
-        print desc, cost_rosname_rostype_traceability(u, v)
+        print(desc, cost_rosname_rostype_traceability(u, v))
 
 if __name__ == "__main__":
     loc1 = Location("pkg", "file", 1, 1)

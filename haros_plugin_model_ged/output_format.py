@@ -25,6 +25,7 @@
 # Imports
 ###############################################################################
 
+from builtins import str
 from builtins import range
 from cgi import escape
 

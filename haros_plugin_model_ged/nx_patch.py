@@ -33,6 +33,7 @@
 # Imports
 ###############################################################################
 
+from builtins import zip
 import itertools
 
 from networkx.algorithms.bipartite.matrix import biadjacency_matrix
