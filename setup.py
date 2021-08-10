@@ -31,12 +31,9 @@ def read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()
 
 
-extra_files = ["haros_plugin_model_ged/plugin.yaml"]
-
-
 setup(
     name = "haros_plugin_model_ged",
-    version = "0.2.0",
+    version = "0.2.1",
     author = "André Santos",
     author_email = "andre.f.santos@inesctec.pt",
     description = "Graph Edit Distance of HAROS models.",
@@ -44,11 +41,11 @@ setup(
     keywords = "graph-edit-distance model-extraction",
     url = "https://github.com/git-afsantos/haros-plugin-model-ged",
     packages = find_packages(),
-    package_data = {"haros_plugin_model_ged": extra_files},
+    package_data = {"haros_plugin_model_ged": ["plugin.yaml"]},
     install_requires = [
         "networkx>=2.2.0,<3.0.0",
         "numpy>=1.15.4",
         "scipy>=1.1.0"
     ],
-    zip_safe = True
+    zip_safe = False
 )
