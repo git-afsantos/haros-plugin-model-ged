@@ -35,7 +35,7 @@ setup(
     name = "haros_plugin_model_ged",
     version = "0.2.1",
     author = "André Santos",
-    author_email = "andre.f.santos@inesctec.pt",
+    author_email = "haros.framework@gmail.com",
     description = "Graph Edit Distance of HAROS models.",
     license = "MIT",
     keywords = "graph-edit-distance model-extraction",
